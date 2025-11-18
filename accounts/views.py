@@ -65,7 +65,7 @@ def format_datetime_for_response(dt):
 
 # ---- API keys (env) ----
 KAKAO_DEFAULT_KEY = os.getenv('KAKAO_REST_API_KEY', '').strip()
-SEOUL_API_KEY = os.getenv('SEOUL_API_KEY', '5475735677736f6d36364b44527a6f')
+SEOUL_API_KEY = os.getenv('SEOUL_API_KEY', '').strip()
 
 # ---- AI model loading (lazy-safe) ----
 XGB_MODEL = None
