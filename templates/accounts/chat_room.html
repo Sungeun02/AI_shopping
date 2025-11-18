@@ -1,0 +1,1101 @@
+{% extends 'base.html' %}
+
+{% block title %}채팅방 - {{ room.mart_name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <div>
+                <i class="fas fa-store me-2"></i>{{ room.mart_name }}
+                <span class="badge bg-secondary ms-2">{{ room.get_status_display }}</span>
+            </div>
+            <div class="small text-muted mt-1">
+                <i class="fas fa-clock me-1"></i>
+                {{ room.meetup_at|date:"Y.m.d (D) A g시" }}
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            {% if room.created_by == user %}
+            {% if room.settlement_result %}
+            <button class="btn btn-sm btn-success" id="btn-view-settlement-host" data-bs-toggle="modal" data-bs-target="#settlementResultModal">
+                <i class="fas fa-eye me-1"></i>결과확인
+            </button>
+            <button class="btn btn-sm btn-primary" id="btn-rate-host" data-bs-toggle="modal"
+                data-bs-target="#ratingModal" style="display: none;">
+                <i class="fas fa-star me-1"></i>평점남기기
+            </button>
+            {% endif %}
+            {% if room.status == 'DONE' %}
+            <button class="btn btn-sm btn-info" id="btn-settlement" data-bs-toggle="modal"
+                data-bs-target="#settlementModal">
+                <i class="fas fa-calculator me-1"></i>정산하기
+            </button>
+            {% endif %}
+
+            {% if not room.settlement_result %}
+            <button class="btn btn-sm btn-warning" id="btn-mark-done">
+                <i class="fas fa-check me-1"></i>
+                {% if room.status == 'RECRUITING' %}
+                모집 완료
+                {% else %}
+                모집중으로
+                {% endif %}
+            </button>
+            <button class="btn btn-sm btn-danger" id="btn-delete-room">
+                <i class="fas fa-trash me-1"></i>방 삭제
+            </button>
+            {% endif %}
+
+            {% else %}
+            {% if room.settlement_result %}
+            <button class="btn btn-sm btn-success" id="btn-view-settlement" data-bs-toggle="modal"
+                data-bs-target="#settlementResultModal">
+                <i class="fas fa-eye me-1"></i>결과확인
+            </button>
+            <button class="btn btn-sm btn-primary" id="btn-rate-host" data-bs-toggle="modal"
+                data-bs-target="#ratingModal" style="display: none;">
+                <i class="fas fa-star me-1"></i>평점남기기
+            </button>
+            {% endif %}
+
+            <button class="btn btn-sm btn-warning" id="btn-leave-room">
+                <i class="fas fa-sign-out-alt me-1"></i>나가기
+            </button>
+            {% endif %}
+
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'accounts:dashboard' %}#chat">
+                <i class="fas fa-arrow-left me-1"></i>목록
+            </a>
+        </div>
+    </div>
+
+    <div class="card-body" id="chat-messages" style="height:50vh; overflow-y:auto;">
+        {% for msg in chat_messages %}
+        {% if msg.is_system %}
+        <div class="mb-2 d-flex justify-content-center">
+            <div class="system-message">
+                <div class="text-muted small">{{ msg.content }}</div>
+            </div>
+        </div>
+        {% else %}
+        <div class="mb-2 d-flex {% if msg.user == user %}justify-content-end{% else %}justify-content-start{% endif %}">
+            <div class="message-bubble {% if msg.user == user %}message-sent{% else %}message-received{% endif %}">
+                {% if msg.user != user %}
+                <div class="small text-muted mb-1">
+                    <strong>{{ msg.user.name }}</strong>
+                </div>
+                {% endif %}
+                <div>{{ msg.content|linebreaksbr }}</div>
+                <div class="small text-muted mt-1">
+                    {{ msg.created_at|date:"A g:i" }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% empty %}
+        <div class="text-muted text-center">메시지가 없습니다.</div>
+        {% endfor %}
+    </div>
+
+    <div class="card-footer">
+        <form id="chat-form" method="post">
+            {% csrf_token %}
+            <div class="input-group">
+                <input type="text" name="content" id="chat-input" class="form-control" placeholder="메시지 입력..." required>
+                <button class="btn btn-primary" type="submit">전송</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- 정산하기 모달 (방장용) -->
+<div class="modal fade" id="settlementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-calculator me-2"></i>정산하기</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="settlement-form" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="settlement-image" class="form-label">영수증 이미지 업로드</label>
+                        <input type="file" class="form-control" id="settlement-image" name="image" accept="image/*"
+                            required>
+                        <div class="form-text">영수증 사진을 업로드해주세요.</div>
+                    </div>
+                    <div id="settlement-error" class="alert alert-danger" style="display:none;"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="btn-confirm-settlement">확인</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 정산 결과 모달 (참여자용) -->
+<div class="modal fade" id="settlementResultModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-receipt me-2"></i>정산 결과</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="settlement-result-content">
+                <div class="text-center text-muted py-3">정산 결과를 불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 평점 남기기 모달 -->
+<div class="modal fade" id="ratingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-star me-2"></i>참여자 평점 남기기</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="rating-modal-body">
+                <div class="text-center text-muted py-3">평점 정보를 불러오는 중...</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .message-bubble {
+        max-width: 70%;
+        padding: 10px 15px;
+        border-radius: 18px;
+        word-wrap: break-word;
+    }
+
+    .message-sent {
+        background-color: #007bff;
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+
+    .message-received {
+        background-color: #f1f1f1;
+        color: #333;
+        border-bottom-left-radius: 4px;
+    }
+
+    .message-sent .text-muted {
+        color: rgba(255, 255, 255, 0.8) !important;
+    }
+
+    .system-message {
+        padding: 4px 12px;
+        background-color: rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+        text-align: center;
+    }
+
+    .rating-stars {
+        font-size: 2rem;
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+    }
+
+    .star-wrapper {
+        position: relative;
+        cursor: pointer;
+        display: inline-block;
+    }
+
+    .star-icon {
+        color: #ddd;
+        transition: color 0.2s;
+        display: block;
+    }
+
+    .star-wrapper:hover .star-icon {
+        color: #ffc107;
+    }
+
+    .star-icon.active {
+        color: #ffc107;
+    }
+
+    .rating-value {
+        margin-top: 10px;
+    }
+
+    .participant-rating-item {
+        transition: background-color 0.2s;
+    }
+
+    .participant-rating-item:hover {
+        background-color: #f8f9fa;
+    }
+</style>
+
+<script>
+    function getCsrf() {
+        const name = 'csrftoken=';
+        const cookies = document.cookie.split(';');
+        for (const c of cookies) {
+            const t = c.trim();
+            if (t.startsWith(name)) return t.substring(name.length);
+        }
+        return '';
+    }
+
+    function formatKRW(n) {
+        if (typeof n !== 'number') n = parseInt(n || 0, 10);
+        return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '원';
+    }
+
+    // 채팅 메시지 전송
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const chatMessages = document.getElementById('chat-messages');
+    const currentUserId = Number('{{ user.id }}');
+    const roomParticipants = JSON.parse('{{ participants_json|escapejs }}');
+
+    if (chatForm) {
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const content = chatInput.value.trim();
+            if (!content) return;
+
+            try {
+                const res = await fetch("{% url 'accounts:chat_room' room.id %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrf(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `content=${encodeURIComponent(content)}`
+                });
+                const data = await res.json();
+
+                if (data.ok && data.message) {
+                    // 메시지 추가
+                    addMessageToChat(data.message);
+                    chatInput.value = '';
+                    // 스크롤을 맨 아래로
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                } else {
+                    alert('메시지 전송에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                alert('메시지 전송 중 오류가 발생했습니다.');
+            }
+        });
+    }
+
+    function addMessageToChat(message) {
+        const messageDiv = document.createElement('div');
+
+        // 시스템 메시지 처리
+        if (message.is_system) {
+            messageDiv.className = 'mb-2 d-flex justify-content-center';
+            messageDiv.innerHTML = `
+            <div class="system-message">
+                <div class="text-muted small">${message.content}</div>
+            </div>
+        `;
+        } else {
+            const isMyMessage = message.user_id === currentUserId;
+            messageDiv.className = `mb-2 d-flex ${isMyMessage ? 'justify-content-end' : 'justify-content-start'}`;
+
+            const date = new Date(message.created_at);
+            const hours = date.getHours();
+            const minutes = date.getMinutes();
+            const ampm = hours >= 12 ? '오후' : '오전';
+            const displayHours = hours % 12 || 12;
+            const timeStr = `${ampm} ${displayHours}:${String(minutes).padStart(2, '0')}`;
+
+            messageDiv.innerHTML = `
+            <div class="message-bubble ${isMyMessage ? 'message-sent' : 'message-received'}">
+                ${!isMyMessage ? `<div class="small text-muted mb-1"><strong>${message.user}</strong></div>` : ''}
+                <div>${message.content.replace(/\n/g, '<br>')}</div>
+                <div class="small text-muted mt-1">${timeStr}</div>
+            </div>
+        `;
+        }
+
+        chatMessages.appendChild(messageDiv);
+    }
+
+    // 페이지 로드 시 스크롤을 맨 아래로
+    window.addEventListener('load', () => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+
+    // 나가기 버튼
+    const btnLeave = document.getElementById('btn-leave-room');
+    if (btnLeave) {
+        btnLeave.addEventListener('click', async () => {
+            if (!confirm('정말 이 방에서 나가시겠습니까?')) return;
+
+            const res = await fetch("{% url 'accounts:leave_room' room.id %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrf() }
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                alert('방에서 나갔습니다.');
+                window.location.href = "{% url 'accounts:dashboard' %}#chat";
+            } else {
+                alert('오류가 발생했습니다.');
+            }
+        });
+    }
+
+    // 방 삭제 버튼
+    const btnDelete = document.getElementById('btn-delete-room');
+    if (btnDelete) {
+        btnDelete.addEventListener('click', async () => {
+            if (!confirm('정말 이 방을 삭제하시겠습니까? 모든 채팅 내용이 사라집니다.')) return;
+
+            const res = await fetch("{% url 'accounts:delete_room' room.id %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrf() }
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                alert('방이 삭제되었습니다.');
+                window.location.href = "{% url 'accounts:dashboard' %}#chat";
+            } else {
+                if (data.error === 'NOT_OWNER') {
+                    alert('방장만 삭제할 수 있습니다.');
+                } else {
+                    alert('오류가 발생했습니다.');
+                }
+            }
+        });
+    }
+
+    // 모집 완료/모집중 토글 버튼
+    const btnMarkDone = document.getElementById('btn-mark-done');
+    if (btnMarkDone) {
+        btnMarkDone.addEventListener('click', async () => {
+            const isCurrentlyRecruiting = btnMarkDone.textContent.includes('모집 완료');
+            const confirmMsg = isCurrentlyRecruiting
+                ? '모집을 완료하시겠습니까?'
+                : '다시 모집중으로 변경하시겠습니까?';
+
+            if (!confirm(confirmMsg)) return;
+
+            const res = await fetch("{% url 'accounts:mark_room_done' room.id %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrf() }
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                if (data.status === 'DONE') {
+                    alert('모집이 완료되었습니다.');
+                } else {
+                    alert('다시 모집중으로 변경되었습니다.');
+                }
+                location.reload();
+            } else {
+                if (data.error === 'NOT_OWNER') {
+                    alert('방장만 변경할 수 있습니다.');
+                } else if (data.error === 'TIME_EXPIRED') {
+                    alert(data.message || '약속 시간이 지났거나 10분 전 이내입니다. 상태를 변경할 수 없습니다.');
+                } else {
+                    alert('오류가 발생했습니다.');
+                }
+            }
+        });
+    }
+
+    // 정산하기 버튼 (방장용)
+    const btnConfirmSettlement = document.getElementById('btn-confirm-settlement');
+    if (btnConfirmSettlement) {
+        btnConfirmSettlement.addEventListener('click', async () => {
+            const imageInput = document.getElementById('settlement-image');
+            const errorDiv = document.getElementById('settlement-error');
+
+            if (!imageInput.files || !imageInput.files[0]) {
+                errorDiv.textContent = '이미지를 선택해주세요.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            errorDiv.style.display = 'none';
+            btnConfirmSettlement.disabled = true;
+            btnConfirmSettlement.textContent = '처리 중...';
+
+            const formData = new FormData();
+            formData.append('image', imageInput.files[0]);
+
+            try {
+                const res = await fetch("{% url 'accounts:process_settlement' room.id %}", {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrf() },
+                    body: formData
+                });
+                if (!res.ok) {
+                    // Try to parse error body for message
+                    let errMsg = '정산 처리 중 오류가 발생했습니다.';
+                    try { errMsg = (await res.json()).message || errMsg; } catch { }
+                    errorDiv.textContent = errMsg;
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+
+                const data = await res.json();
+                if (data.ok) {
+                    // Prepare content for next modal but wait until current modal is fully hidden (accessibility)
+                    const resultModalEl = document.getElementById('settlementResultModal');
+                    const resultContent = document.getElementById('settlement-result-content');
+                    const showResult = () => {
+                        resultContent.innerHTML = buildSettlementAssignHTML(data.receipt, data.texts);
+                        // 전송하기 버튼 클릭 여부를 추적하기 위한 플래그
+                        let settlementFinalized = false;
+                        // attachAssignHandlers 함수에 플래그 설정 함수 전달
+                        attachAssignHandlers(() => {
+                            settlementFinalized = true;
+                        });
+                        const resultModal = new bootstrap.Modal(resultModalEl);
+                        resultModal.show();
+                        // 결과 모달이 닫힌 후 페이지 새로고침 (전송하기 버튼을 눌렀을 때만)
+                        resultModalEl.addEventListener('hidden.bs.modal', function handler() {
+                            resultModalEl.removeEventListener('hidden.bs.modal', handler);
+                            // 전송하기 버튼을 눌렀을 때만 새로고침
+                            if (settlementFinalized) {
+                                location.reload();
+                            }
+                        }, { once: true });
+                    };
+                    const smEl = document.getElementById('settlementModal');
+                    // Blur focused element to avoid aria-hidden warning
+                    if (document.activeElement) { try { document.activeElement.blur(); } catch { } }
+                    const sm = bootstrap.Modal.getInstance(smEl);
+                    smEl.addEventListener('hidden.bs.modal', function handler() {
+                        smEl.removeEventListener('hidden.bs.modal', handler);
+                        showResult();
+                    });
+                    if (sm) sm.hide();
+                } else {
+                    errorDiv.textContent = data.message || '정산 처리 중 오류가 발생했습니다.';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error processing settlement:', error);
+                errorDiv.textContent = '정산 처리 중 오류가 발생했습니다.';
+                errorDiv.style.display = 'block';
+            } finally {
+                btnConfirmSettlement.disabled = false;
+                btnConfirmSettlement.textContent = '확인';
+            }
+        });
+    }
+
+    // 정산 결과 모달 열릴 때 자동으로 결과 로드
+    const settlementResultModal = document.getElementById('settlementResultModal');
+    let isViewResultButton = false; // "결과확인" 버튼으로 열렸는지 추적
+    
+    // "결과확인" 버튼 클릭 시 플래그 설정
+    const btnViewSettlementHost = document.getElementById('btn-view-settlement-host');
+    const btnViewSettlement = document.getElementById('btn-view-settlement');
+    if (btnViewSettlementHost) {
+        btnViewSettlementHost.addEventListener('click', () => {
+            isViewResultButton = true;
+        });
+    }
+    if (btnViewSettlement) {
+        btnViewSettlement.addEventListener('click', () => {
+            isViewResultButton = true;
+        });
+    }
+    
+    if (settlementResultModal) {
+        settlementResultModal.addEventListener('show.bs.modal', async () => {
+            const resultContent = document.getElementById('settlement-result-content');
+            resultContent.innerHTML = '<div class="text-center text-muted py-3">정산 결과를 불러오는 중...</div>';
+
+            try {
+                const res = await fetch("{% url 'accounts:get_settlement_result' room.id %}");
+                const data = await res.json();
+
+                if (data.ok && (data.texts || data.receipt)) {
+                    const isHost = currentUserId === Number('{{ room.created_by.id }}');
+                    // "결과확인" 버튼을 눌렀을 때는 항상 최종 결과 화면 표시 (방장과 참여자 모두 동일한 형식)
+                    // 정산이 완료된 경우 (allocation이 있고 finalized된 경우) 또는 "결과확인" 버튼으로 열린 경우
+                    if (data.allocation && (data.allocation.items || data.allocation.per_user)) {
+                        resultContent.innerHTML = buildSettlementFinalHTML(data, isHost);
+                    } else if (isViewResultButton) {
+                        // "결과확인" 버튼을 눌렀을 때는 항상 최종 결과 화면 표시
+                        resultContent.innerHTML = buildSettlementFinalHTML(data, isHost);
+                    } else {
+                        // 정산이 완료되지 않은 경우에만 배분 설정 화면 표시
+                        // If host, allow interactive assign; else show summary/texts
+                        if (isHost && data.receipt) {
+                            resultContent.innerHTML = buildSettlementAssignHTML(data.receipt, data.texts);
+                            attachAssignHandlers();
+                        } else {
+                            // 참여자 화면: 정산 요약과 본인 금액만 표시
+                            const alloc = data.allocation || {};
+                            const perUser = alloc.per_user || {};
+                            const total = (data.summary && data.summary.total_amount) || (alloc.total || 0);
+                            const participantCount = roomParticipants.length;
+                            const currentUserAmount = perUser[currentUserId] || (data.summary && data.summary.per_person_amount) || 0;
+                            
+                            // 멤버별 금액 목록 (allocation이 있을 때만 표시)
+                            let memberList = '';
+                            if (alloc.per_user && Object.keys(alloc.per_user).length > 0) {
+                                memberList = roomParticipants.map(p => `<div>${p.name}: ${formatKRW(perUser[p.id] || 0)}</div>`).join('');
+                            } else {
+                                // allocation이 없으면 평균 금액으로 표시
+                                const avgAmount = data.summary && data.summary.per_person_amount ? data.summary.per_person_amount : 0;
+                                memberList = roomParticipants.map(p => `<div>${p.name}: ${formatKRW(avgAmount)}</div>`).join('');
+                            }
+                            
+                            let summaryHtml = '';
+                            if (data.summary || alloc.per_user) {
+                                summaryHtml = `
+                                <div class="mb-3">
+                                    <h6>정산 요약</h6>
+                                    <div class="border rounded p-3" style="background-color:#fff;">
+                                        <div><strong>총 금액</strong>: ${formatKRW(total)}</div>
+                                        <div><strong>참여 인원</strong>: ${participantCount}명</div>
+                                        <div class="mt-2"><strong>멤버별 금액</strong>:</div>
+                                        <div class="mt-1">${memberList}</div>
+                                    </div>
+                                </div>`;
+                            }
+                            const textsHtml = `
+                                <div class="mb-3">
+                                    <h6>정산 결과</h6>
+                                    <div class="border rounded p-3" style="background-color: #f8f9fa;">
+                                        <div><strong>내가 내야 할 금액</strong>: ${formatKRW(currentUserAmount)}</div>
+                                    </div>
+                                </div>`;
+                            resultContent.innerHTML = summaryHtml + textsHtml;
+                        }
+                    }
+                    // 플래그 리셋
+                    isViewResultButton = false;
+                } else {
+                    resultContent.innerHTML = '<div class="text-center text-danger py-3">정산 결과를 불러올 수 없습니다.</div>';
+                    isViewResultButton = false;
+                }
+            } catch (error) {
+                console.error('Error loading settlement result:', error);
+                resultContent.innerHTML = '<div class="text-center text-danger py-3">정산 결과를 불러오는 중 오류가 발생했습니다.</div>';
+                isViewResultButton = false;
+            }
+        });
+    }
+
+    function buildSettlementAssignHTML(receipt, texts) {
+        const items = (receipt && receipt.items) || [];
+        const total = (receipt && receipt.totalPrice && receipt.totalPrice.price) || 0;
+        let headerRow = `<th class="text-center">모두</th>` + roomParticipants.map(p => `<th class="text-center">${p.name}</th>`).join('');
+        let rows = items.map((it, idx) => {
+            const name = it.name || `품목 ${idx + 1}`;
+            const count = it.count || 1;
+            const unit = (it.price && it.price.unitPrice) || 0;
+            const line = (it.price && it.price.price) || (unit * count);
+            const checks = `<td class="text-center"><input type="checkbox" class="assign-check" data-row="${idx}" data-user="all" checked></td>` + roomParticipants.map(p => `
+                <td class="text-center"><input type="checkbox" class="assign-check" data-row="${idx}" data-user="${p.id}" checked></td>
+            `).join('');
+            return `
+                <tr>
+                    <td>${name}<div class="text-muted small">수량: ${count} / 단가: ${formatKRW(unit)} / 금액: ${formatKRW(line)}</div></td>
+                    ${checks}
+                </tr>`;
+        }).join('');
+        const totalsBox = `<div id="assign-totals" class="mt-3"></div>`;
+        const submitBtn = (currentUserId === Number('{{ room.created_by.id }}')) ? `<div class="text-end mt-3 d-flex gap-2 justify-content-end"><button class="btn btn-secondary" id="btn-close-settlement">닫기</button><button class="btn btn-primary" id="btn-finalize-settlement">전송하기</button></div>` : '';
+        const textsBox = (texts && texts.length) ? `<div class="mt-3"><div class="border rounded p-3" style="background-color: #f8f9fa; font-family: monospace; white-space: pre-wrap;">${texts.join('\n')}</div></div>` : '';
+        return `
+            <div>
+                <h6>인원/배분 설정</h6>
+                <div class="mb-2">총금액: <strong>${formatKRW(total)}</strong></div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr><th>항목</th>${headerRow}</tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+                ${totalsBox}
+                ${submitBtn}
+                ${textsBox}
+            </div>`;
+    }
+
+    function buildSettlementFinalHTML(data, isHost) {
+        const alloc = data.allocation || {};
+        const perUser = alloc.per_user || {};
+        const total = alloc.total || (data.summary && data.summary.total_amount) || 0;
+        const people = roomParticipants;
+        const participantCount = people.length;
+        
+        // 현재 사용자가 내야 할 금액
+        const currentUserAmount = perUser[currentUserId] || (data.summary && data.summary.per_person_amount) || 0;
+        
+        // 멤버별 금액 목록 (allocation이 있을 때만 표시)
+        let memberList = '';
+        if (alloc.per_user && Object.keys(alloc.per_user).length > 0) {
+            memberList = people.map(p => `<div>${p.name}: ${formatKRW(perUser[p.id] || 0)}</div>`).join('');
+        } else {
+            // allocation이 없으면 평균 금액으로 표시
+            const avgAmount = data.summary && data.summary.per_person_amount ? data.summary.per_person_amount : 0;
+            memberList = people.map(p => `<div>${p.name}: ${formatKRW(avgAmount)}</div>`).join('');
+        }
+        
+        return `
+            <div>
+                <div class="mb-3">
+                    <h6>정산 요약</h6>
+                    <div class="border rounded p-3" style="background-color:#fff;">
+                        <div><strong>총 금액</strong>: ${formatKRW(total)}</div>
+                        <div><strong>참여 인원</strong>: ${participantCount}명</div>
+                        <div class="mt-2"><strong>멤버별 금액</strong>:</div>
+                        <div class="mt-1">${memberList}</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <h6>정산 결과</h6>
+                    <div class="border rounded p-3" style="background-color: #f8f9fa;">
+                        <div><strong>내가 내야 할 금액</strong>: ${formatKRW(currentUserAmount)}</div>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    function attachAssignHandlers(onFinalizeCallback) {
+        const container = document.getElementById('settlement-result-content');
+        const checkboxes = container.querySelectorAll('.assign-check');
+        
+        // 참여자의 "모두 체크" 체크박스 업데이트 함수 (헤더 체크박스는 없으므로 제거)
+        function updateCheckAllUser(userId) {
+            // 헤더 체크박스가 없으므로 이 함수는 사용하지 않음
+        }
+        
+        // 모든 참여자의 "모두 체크" 체크박스 업데이트
+        function updateAllCheckAllUsers() {
+            // 헤더 체크박스가 없으므로 이 함수는 사용하지 않음
+        }
+        
+        function recalc() {
+            // For each row, ensure at least one checked; compute per-user totals equally among checked users
+            const rows = Array.from(container.querySelectorAll('tbody tr'));
+            const perUser = {};
+            for (const p of roomParticipants) perUser[p.id] = 0;
+            let total = 0;
+            rows.forEach((row, idx) => {
+                const text = row.querySelector('td').innerText || '';
+                const match = text.match(/금액:\s*([\d,]+)원/);
+                const line = match ? parseInt(match[1].replace(/,/g, ''), 10) : 0;
+                total += line;
+                const checks = Array.from(row.querySelectorAll(`.assign-check[data-row="${idx}"]`));
+                const chosen = checks.filter(c => c.checked);
+                // validate: need at least one
+                if (chosen.length === 0) {
+                    row.style.outline = '2px solid #dc3545';
+                } else {
+                    row.style.outline = '';
+                }
+                const share = chosen.length ? Math.round(line / chosen.length / 10) * 10 : 0;
+                chosen.forEach(c => { perUser[c.dataset.user] += share; });
+            });
+            const box = document.getElementById('assign-totals');
+            const lines = roomParticipants.map(p => `<div>${p.name}: ${formatKRW(perUser[p.id] || 0)}</div>`).join('');
+            box.innerHTML = `<div class="mb-2"><strong>인원별 합계</strong></div>${lines}`;
+            
+            return { perUser, total, hasEmpty: rows.some((row, idx) => Array.from(row.querySelectorAll(`.assign-check[data-row="${idx}"]`)).every(c => !c.checked)) };
+        }
+        
+        // 행의 "모두" 체크박스 업데이트 함수
+        function updateCheckAllForRow(rowIdx) {
+            const checkAllBox = container.querySelector(`.assign-check[data-row="${rowIdx}"][data-user="all"]`);
+            const rowCheckboxes = Array.from(container.querySelectorAll(`.assign-check[data-row="${rowIdx}"]`));
+            const participantCheckboxes = rowCheckboxes.filter(cb => cb.dataset.user !== 'all');
+            const allChecked = participantCheckboxes.length > 0 && participantCheckboxes.every(cb => cb.checked);
+            if (checkAllBox) {
+                checkAllBox.checked = allChecked;
+            }
+        }
+        
+        // 개별 체크박스 이벤트
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const rowIdx = cb.dataset.row;
+                const userId = cb.dataset.user;
+                
+                // "모두" 체크박스가 아닌 경우, 해당 행의 "모두" 체크박스 상태 업데이트
+                if (userId !== 'all') {
+                    updateCheckAllForRow(rowIdx);
+                }
+                
+                recalc();
+            });
+        });
+        
+        // 행의 "모두" 체크박스 클릭 시 해당 행의 모든 체크박스 체크/해제
+        checkboxes.forEach(cb => {
+            if (cb.dataset.user === 'all') {
+                cb.addEventListener('change', () => {
+                    const rowIdx = cb.dataset.row;
+                    const rowCheckboxes = Array.from(container.querySelectorAll(`.assign-check[data-row="${rowIdx}"]`));
+                    rowCheckboxes.forEach(rowCb => {
+                        if (rowCb.dataset.user !== 'all') {
+                            rowCb.checked = cb.checked;
+                        }
+                    });
+                    recalc();
+                });
+            }
+        });
+        // 닫기 버튼 이벤트
+        const btnClose = document.getElementById('btn-close-settlement');
+        if (btnClose) {
+            btnClose.addEventListener('click', () => {
+                const modalEl = document.getElementById('settlementResultModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) {
+                    modal.hide();
+                }
+            });
+        }
+        
+        // 전송하기 버튼 이벤트
+        const btn = document.getElementById('btn-finalize-settlement');
+        if (btn) {
+            btn.addEventListener('click', async () => {
+                const state = recalc();
+                if (state.hasEmpty) {
+                    alert('모든 항목에서 최소 1명 이상 선택해주세요.');
+                    return;
+                }
+                // Build payload
+                const rows = Array.from(container.querySelectorAll('tbody tr'));
+                const items = rows.map((row, idx) => {
+                    const name = row.querySelector('td').childNodes[0].textContent.trim();
+                    const info = row.querySelector('td .text-muted').innerText;
+                    const unitM = info.match(/단가:\s*([\d,]+)원/);
+                    const countM = info.match(/수량:\s*(\d+)/);
+                    const priceM = info.match(/금액:\s*([\d,]+)원/);
+                    const assigned = Array.from(row.querySelectorAll(`.assign-check[data-row="${idx}"]`)).filter(c => c.checked && c.dataset.user !== 'all').map(c => Number(c.dataset.user));
+                    return {
+                        name,
+                        count: countM ? parseInt(countM[1], 10) : 1,
+                        price: {
+                            unitPrice: unitM ? parseInt(unitM[1].replace(/,/g, ''), 10) : 0,
+                            price: priceM ? parseInt(priceM[1].replace(/,/g, ''), 10) : 0,
+                        },
+                        assignedUserIds: assigned,
+                    };
+                });
+                try {
+                    const resp = await fetch("{% url 'accounts:finalize_settlement' room.id %}", {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items, per_user: state.perUser, total: state.total }),
+                    });
+                    const js = await resp.json();
+                    if (js.ok) {
+                        alert('정산 결과를 전송했습니다.');
+                        // 콜백 함수 호출하여 정산 완료 플래그 설정
+                        if (onFinalizeCallback) {
+                            onFinalizeCallback();
+                        }
+                        // 모달 닫기
+                        const modalEl = document.getElementById('settlementResultModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) {
+                            modal.hide();
+                        }
+                    } else {
+                        alert(js.message || '정산 결과 전송에 실패했습니다.');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('정산 결과 전송 중 오류가 발생했습니다.');
+                }
+            });
+        }
+        // initial calc
+        recalc();
+    }
+
+    // 평점 남기기 기능
+    const btnRateHost = document.getElementById('btn-rate-host');
+    const ratingModal = document.getElementById('ratingModal');
+    const ratingModalBody = document.getElementById('rating-modal-body');
+    let participantsData = [];
+    let currentRatings = {}; // 각 참여자별 현재 선택된 평점
+
+    // 평점 상태 확인 및 버튼 표시/숨김
+    async function checkRatingStatus() {
+        if (!btnRateHost) return;
+        
+        try {
+            const res = await fetch("{% url 'accounts:check_rating_status' room.id %}");
+            const data = await res.json();
+            
+            if (data.ok && data.can_rate && data.participants && data.participants.length > 0) {
+                // 평점을 남길 수 있는 참여자가 있으면 버튼 표시
+                const hasUnrated = data.participants.some(p => !p.has_rated);
+                if (hasUnrated) {
+                    btnRateHost.style.display = 'inline-block';
+                } else {
+                    btnRateHost.style.display = 'none';
+                }
+            } else {
+                btnRateHost.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error checking rating status:', error);
+        }
+    }
+
+    // 페이지 로드 시 평점 상태 확인
+    checkRatingStatus();
+
+    // 별 표시 업데이트 함수 (5개 별, 반별 지원)
+    function updateStarDisplay(containerId, rating, isHover = false) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        
+        const starWrappers = container.querySelectorAll('.star-wrapper');
+        const displayRating = rating || 0;
+        const fullStars = Math.floor(displayRating);
+        const hasHalfStar = (displayRating % 1) >= 0.5 && (displayRating % 1) < 1.0;
+        
+        starWrappers.forEach((wrapper, index) => {
+            const starNum = index + 1;
+            const starIcon = wrapper.querySelector('.star-icon');
+            
+            if (starNum <= fullStars) {
+                // 완전히 채워진 별
+                starIcon.classList.remove('far', 'fa-star-half-alt');
+                starIcon.classList.add('fas', 'fa-star', 'active');
+            } else if (starNum === fullStars + 1 && hasHalfStar) {
+                // 반 별
+                starIcon.classList.remove('far', 'fa-star');
+                starIcon.classList.add('fas', 'fa-star-half-alt', 'active');
+            } else {
+                // 빈 별
+                starIcon.classList.remove('fas', 'fa-star-half-alt', 'active');
+                starIcon.classList.add('far', 'fa-star');
+            }
+        });
+    }
+
+    // 참여자 평점 모달 내용 생성
+    function buildRatingModalContent(participants) {
+        if (!participants || participants.length === 0) {
+            return '<div class="text-center text-muted py-3">평점을 남길 참여자가 없습니다.</div>';
+        }
+
+        let html = '<div class="participant-ratings">';
+        participants.forEach((participant, index) => {
+            const ratingId = `rating-${participant.id}`;
+            const starsId = `stars-${participant.id}`;
+            const displayId = `display-${participant.id}`;
+            const isRated = participant.has_rated;
+            
+            html += `
+                <div class="participant-rating-item mb-4 p-3 border rounded ${isRated ? 'bg-light' : ''}" data-user-id="${participant.id}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>${participant.name}</strong>
+                            ${participant.is_host ? '<span class="badge bg-primary ms-2">방장</span>' : ''}
+                            <span class="text-muted small ms-2">신뢰도: ${participant.trust_score.toFixed(1)}</span>
+                        </div>
+                        ${isRated ? '<span class="badge bg-success">평점 완료</span>' : ''}
+                    </div>
+                    ${!isRated ? `
+                        <div class="text-center mb-3">
+                            <div class="rating-stars mb-2" id="${starsId}">
+                                <div class="star-wrapper" data-star="1">
+                                    <i class="far fa-star star-icon"></i>
+                                </div>
+                                <div class="star-wrapper" data-star="2">
+                                    <i class="far fa-star star-icon"></i>
+                                </div>
+                                <div class="star-wrapper" data-star="3">
+                                    <i class="far fa-star star-icon"></i>
+                                </div>
+                                <div class="star-wrapper" data-star="4">
+                                    <i class="far fa-star star-icon"></i>
+                                </div>
+                                <div class="star-wrapper" data-star="5">
+                                    <i class="far fa-star star-icon"></i>
+                                </div>
+                            </div>
+                            <div class="rating-value">
+                                <span id="${displayId}" class="h6">0.0</span>
+                                <span class="text-muted">/ 5.0</span>
+                            </div>
+                            <input type="hidden" id="${ratingId}" value="0">
+                            <button class="btn btn-sm btn-primary mt-2" onclick="submitParticipantRating(${participant.id})" id="btn-submit-${participant.id}" disabled>
+                                평점 남기기
+                            </button>
+                        </div>
+                    ` : '<div class="text-center text-muted">이미 평점을 남기셨습니다.</div>'}
+                </div>
+            `;
+        });
+        html += '</div>';
+        return html;
+    }
+
+    // 참여자별 평점 제출
+    window.submitParticipantRating = async function(userId) {
+        const ratingId = `rating-${userId}`;
+        const ratingInput = document.getElementById(ratingId);
+        const btnSubmit = document.getElementById(`btn-submit-${userId}`);
+        
+        if (!ratingInput || !btnSubmit) return;
+        
+        const rating = parseFloat(ratingInput.value);
+        
+        if (!rating || rating < 0.5 || rating > 5) {
+            alert('평점을 선택해주세요.');
+            return;
+        }
+
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = '처리 중...';
+
+        try {
+            const formData = new FormData();
+            formData.append('rating', rating);
+            formData.append('target_user_id', userId);
+
+            const res = await fetch("{% url 'accounts:submit_rating' room.id %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrf() },
+                body: formData
+            });
+
+            const data = await res.json();
+
+            if (data.ok) {
+                alert(data.message || '평점이 등록되었습니다.');
+                // 모달 내용 새로고침
+                loadRatingModal();
+                // 평점 상태 확인
+                checkRatingStatus();
+            } else {
+                alert(data.message || '평점 등록에 실패했습니다.');
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = '평점 남기기';
+            }
+        } catch (error) {
+            console.error('Error submitting rating:', error);
+            alert('평점 등록 중 오류가 발생했습니다.');
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = '평점 남기기';
+        }
+    };
+
+    // 별 클릭 이벤트 설정
+    function setupStarRating(starsId, ratingId, displayId) {
+        const starsContainer = document.getElementById(starsId);
+        if (!starsContainer) return;
+        
+        const starWrappers = starsContainer.querySelectorAll('.star-wrapper');
+        let currentRating = 0;
+        let hoverRating = 0;
+        
+        starWrappers.forEach((wrapper) => {
+            wrapper.addEventListener('click', (e) => {
+                const starNum = parseInt(wrapper.dataset.star);
+                const rect = wrapper.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const width = rect.width;
+                
+                // 왼쪽 절반 클릭 = 0.5점, 오른쪽 절반 클릭 = 1.0점
+                let rating;
+                if (clickX < width / 2) {
+                    rating = starNum - 0.5;
+                } else {
+                    rating = starNum;
+                }
+                
+                currentRating = rating;
+                document.getElementById(ratingId).value = rating;
+                updateStarDisplay(starsId, rating);
+                document.getElementById(displayId).textContent = rating.toFixed(1);
+                document.getElementById(`btn-submit-${ratingId.split('-')[1]}`).disabled = false;
+            });
+
+            wrapper.addEventListener('mousemove', (e) => {
+                const starNum = parseInt(wrapper.dataset.star);
+                const rect = wrapper.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const width = rect.width;
+                
+                // 호버 시 미리보기
+                if (clickX < width / 2) {
+                    hoverRating = starNum - 0.5;
+                } else {
+                    hoverRating = starNum;
+                }
+                updateStarDisplay(starsId, hoverRating, true);
+            });
+        });
+
+        starsContainer.addEventListener('mouseleave', () => {
+            updateStarDisplay(starsId, currentRating);
+        });
+    }
+
+    // 평점 모달 내용 로드
+    async function loadRatingModal() {
+        if (!ratingModalBody) return;
+        
+        ratingModalBody.innerHTML = '<div class="text-center text-muted py-3">평점 정보를 불러오는 중...</div>';
+        
+        try {
+            const res = await fetch("{% url 'accounts:check_rating_status' room.id %}");
+            const data = await res.json();
+            
+            if (data.ok && data.participants) {
+                participantsData = data.participants;
+                ratingModalBody.innerHTML = buildRatingModalContent(data.participants);
+                
+                // 각 참여자별 별 클릭 이벤트 설정
+                data.participants.forEach(participant => {
+                    if (!participant.has_rated) {
+                        setupStarRating(`stars-${participant.id}`, `rating-${participant.id}`, `display-${participant.id}`);
+                    }
+                });
+            } else {
+                ratingModalBody.innerHTML = '<div class="text-center text-muted py-3">평점을 남길 참여자가 없습니다.</div>';
+            }
+        } catch (error) {
+            console.error('Error loading rating modal:', error);
+            ratingModalBody.innerHTML = '<div class="text-center text-danger py-3">평점 정보를 불러오는 중 오류가 발생했습니다.</div>';
+        }
+    }
+
+    // 모달이 열릴 때 참여자 목록 로드
+    if (ratingModal) {
+        ratingModal.addEventListener('show.bs.modal', () => {
+            currentRatings = {};
+            loadRatingModal();
+        });
+    }
+</script>
+
+{% endblock %}

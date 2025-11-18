@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block title %}채팅 - Together Market{% endblock %}
+
+{% block content %}
+<h5 class="mb-3"><i class="fas fa-comments me-2"></i>내 채팅</h5>
+<div class="list-group">
+    {% for r in rooms %}
+    <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+        href="{% url 'accounts:chat_room' r.id %}">
+        <div>
+            <div class="fw-bold">{{ r.mart_name }}</div>
+            <div class="text-muted small">{{ r.meetup_at|date:"Y.m.d A g시" }}</div>
+        </div>
+        <i class="fas fa-chevron-right text-muted"></i>
+    </a>
+    {% empty %}
+    <div class="text-center text-muted py-5">참여한 방이 없습니다.</div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  grocerysql:
+    image: mysql:8.4
+    restart: always
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: grocery
+      MYSQL_USER: cheeze
+      MYSQL_PASSWORD: password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app_network
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8082:8080"
+    depends_on:
+      - grocerysql
+    networks:
+      - app_network
+
+  web:
+    build: .
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./ml_models:/app/ml_models
+    environment:
+      - DEBUG=1
+      - DB_HOST=grocerysql
+      - DB_PORT=3306
+      - DB_NAME=grocery
+      - DB_USER=cheeze
+      - DB_PASSWORD=password
+      - XGB_MODEL_PATH=/app/ml_models/mart_recommender_v2.xgb
+      - SCALER_PATH=/app/ml_models/recommender_scaler_v2.joblib
+    command: python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      - grocerysql
+    networks:
+      - app_network
+
+volumes:
+  mysql_data:
+
+networks:
+  app_network:
+    driver: bridge

@@ -1,0 +1,1587 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}대시보드 - AI Shopping{% endblock %}
+
+{% block content %}
+<div class="tm-header d-flex align-items-center justify-content-between mb-3">
+    <div class="tm-tabs nav nav-pills">
+        <a class="nav-link active" id="tab-find" href="#" onclick="switchTab('find')">팀 찾기</a>
+        <a class="nav-link" id="tab-chat" href="#" onclick="switchTab('chat')">채팅</a>
+        <a class="nav-link" id="tab-ai" href="#" onclick="switchTab('ai')">AI 추천</a>
+    </div>
+    <div class="tm-actions d-flex align-items-center gap-2">
+        <button class="btn btn-success" id="btn-create" data-bs-toggle="modal" data-bs-target="#createRoomModal"><i
+                class="fas fa-plus me-1"></i>방 만들기</button>
+        <button class="btn btn-outline-secondary" id="btn-ai"><i class="fas fa-robot me-1"></i>AI 추천</button>
+        <a class="btn btn-outline-primary" href="{% url 'accounts:profile' %}"><i class="fas fa-user-circle me-1"></i>내
+            프로필</a>
+    </div>
+    <div class="ms-3 small text-muted"><i class="fas fa-shield-alt me-1"></i>신뢰도 {{ user.trust_score }}</div>
+    <div class="ms-3 position-relative">
+        <button class="btn btn-outline-dark" id="btn-noti" data-bs-toggle="modal" data-bs-target="#notificationModal"><i class="fas fa-bell"></i></button>
+        <span class="badge bg-danger position-absolute top-0 start-100 translate-middle p-1" id="noti-badge"
+            style="display:none"></span>
+    </div>
+    
+    <!-- 알림 모달 -->
+    <div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-bell me-2"></i>알림</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="notification-list" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center text-muted py-3">알림을 불러오는 중...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .tm-header .nav-link {
+            border-radius: 12px;
+            padding: 8px 16px
+        }
+
+        .room-card {
+            border-radius: 14px;
+            border: 2px solid #000;
+            padding: 16px;
+            margin-bottom: 16px
+        }
+
+        .room-ribbon {
+            width: 10px;
+            background: #000;
+            margin-left: auto;
+            border-radius: 3px
+        }
+
+        .status-chip {
+            border-radius: 16px;
+            padding: 4px 10px;
+            font-weight: 600
+        }
+
+        .status-RECRUITING {
+            background: #e6f4ea;
+            color: #137333
+        }
+
+        .status-FULL {
+            background: #fde7e9;
+            color: #a50e0e
+        }
+
+        .status-DONE {
+            background: #e8eaed;
+            color: #3c4043
+        }
+
+        .favorite.active {
+            color: #dc3545
+        }
+    </style>
+</div>
+
+<!-- Create Room Modal -->
+<div class="modal fade" id="createRoomModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-door-open me-2"></i>방 만들기</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-room-form">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">날짜</label>
+                        <input type="date" id="cr-date" class="form-control" required>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label">오전/오후</label>
+                            <select id="cr-ampm" class="form-select" required>
+                                <option value="AM">오전</option>
+                                <option value="PM">오후</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">시</label>
+                            <select id="cr-hour" class="form-select" required></select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">분</label>
+                            <select id="cr-minute" class="form-select" required></select>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 position-relative">
+                        <label class="form-label">마트 검색</label>
+                        <input type="text" id="cr-mart" class="form-control" placeholder="예: 이마트, 홈플러스"
+                            autocomplete="off" required>
+                        <div id="cr-suggest" class="list-group position-absolute w-100"
+                            style="z-index:1056; max-height:200px; overflow:auto; display:none"></div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">최대 인원</label>
+                        <select id="cr-max" class="form-select">
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4" selected>4</option>
+                            <option value="5">5</option>
+
+                        </select>
+                    </div>
+                    <div class="mt-3">
+                        <div class="form-label fw-bold">카테고리 (중복 선택)</div>
+                        <div class="row row-cols-1 row-cols-sm-2 g-2" id="cr-categories">
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="1"
+                                        id="crc1"><label class="form-check-label" for="crc1">채소/과일</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="2"
+                                        id="crc2"><label class="form-check-label" for="crc2">육류/유제품</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="3"
+                                        id="crc3"><label class="form-check-label" for="crc3">해산물</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="4"
+                                        id="crc4"><label class="form-check-label" for="crc4">쌀/곡류</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="5"
+                                        id="crc5"><label class="form-check-label" for="crc5">냉장/냉동/인스턴트</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="6"
+                                        id="crc6"><label class="form-check-label" for="crc6">음료/주류</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="7"
+                                        id="crc7"><label class="form-check-label" for="crc7">건강식품</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="8"
+                                        id="crc8"><label class="form-check-label" for="crc8">반려동물 용품</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="9"
+                                        id="crc9"><label class="form-check-label" for="crc9">문구/패션/생활</label></div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="10"
+                                        id="crc10"><label class="form-check-label" for="crc10">기타</label></div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-primary" id="cr-submit">생성하기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Recommend Modal -->
+<div class="modal fade" id="aiRecommendModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-magic me-2"></i>추천 받기</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ai-form">
+                    <div id="ai-location-section" class="mb-3">
+                        <div class="d-grid mb-3">
+                            <button type="button" class="btn btn-outline-dark" id="ai-loc"><i
+                                    class="fas fa-location-arrow me-2"></i>내 위치 찾기</button>
+                            <div class="form-text" id="ai-loc-status"></div>
+                            <input type="hidden" id="ai-lat"><input type="hidden" id="ai-lng">
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-text mb-1">또는</div>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="ai-addr"
+                                    placeholder="주소로 검색 (예: 서울특별시 중구 세종대로 110)">
+                                <button class="btn btn-outline-dark" type="button" id="ai-addr-search">주소로 찾기</button>
+                            </div>
+                            <div class="form-text" id="ai-addr-status"></div>
+                        </div>
+                        <div class="form-text fw-bold" id="ai-final-status"></div>
+                    </div>
+
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-6">
+                            <label class="form-label">날짜</label>
+                            <input type="date" id="ai-date" class="form-control">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">시간 <span class="text-muted small">이후</span></label>
+                            <input type="time" id="ai-time" class="form-control" step="300">
+                        </div>
+                    </div>
+
+                    <div class="mb-2 fw-bold">카테고리</div>
+                    <div class="row row-cols-1 row-cols-sm-2 g-2" id="ai-categories">
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="1"
+                                    id="c1"><label class="form-check-label" for="c1">채소/과일</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="2"
+                                    id="c2"><label class="form-check-label" for="c2">육류/유제품</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="3"
+                                    id="c3"><label class="form-check-label" for="c3">해산물</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="4"
+                                    id="c4"><label class="form-check-label" for="c4">쌀/곡류</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="5"
+                                    id="c5"><label class="form-check-label" for="c5">냉장/냉동/인스턴트</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="6"
+                                    id="c6"><label class="form-check-label" for="c6">음료/주류</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="7"
+                                    id="c7"><label class="form-check-label" for="c7">건강식품</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="8"
+                                    id="c8"><label class="form-check-label" for="c8">반려동물 용품</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="9"
+                                    id="c9"><label class="form-check-label" for="c9">문구/패션/생활</label></div>
+                        </div>
+                        <div class="col">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" value="10"
+                                    id="c10"><label class="form-check-label" for="c10">기타</label></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 small text-muted">선택값을 기반으로 가까운 일정/인기 방을 추천해 드려요.</div>
+                </form>
+
+                <div class="mt-3" id="ai-results-box" style="display:none">
+                    <div class="border rounded p-2" id="ai-results"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-primary" id="ai-submit">추천 받기</button>
+            </div>
+        </div>
+    </div>
+    <style>
+        /* simple bold framed look close to the mock */
+        #aiRecommendModal .modal-content {
+            border: 2px solid #000;
+            border-radius: 14px;
+        }
+
+        #aiRecommendModal .form-check-input {
+            border: 2px solid #000;
+        }
+
+        #aiRecommendModal .form-control,
+        #aiRecommendModal .btn {
+            border: 2px solid #000;
+            border-radius: 12px;
+        }
+        
+        /* 커스텀 배지 스타일 */
+        .badge-category {
+            background-color: #B3D9F2 !important;
+            color: #004085 !important;
+        }
+        
+        .badge-trust {
+            background-color: #0dcaf0 !important;
+            color: #000000 !important;
+        }
+    </style>
+
+</div>
+
+<div id="panel-find">
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label"><i class="fas fa-calendar-alt me-1"></i>날짜</label>
+                    <input type="date" id="filter-date" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label"><i class="fas fa-store me-1"></i>마트</label>
+                    <input type="text" id="filter-mart" class="form-control" placeholder="이마트, 홈플...">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label"><i class="fas fa-sort me-1"></i>정렬</label>
+                    <select id="filter-sort" class="form-select">
+                        <option value="soon">가까운 일정 순</option>
+                        <option value="latest">최신 생성 순</option>
+                        <option value="popular">인기 순</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="rooms-list">
+        {% for r in rooms %}
+        <div class="room-card d-flex align-items-center" data-room-id="{{ r.id }}">
+            <div class="me-3 h4 mb-0">{{ forloop.counter }}.</div>
+            <div class="flex-fill">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="mb-2">
+                            <div class="fw-bold mb-1">
+                                <i class="fas fa-map-marker-alt me-2 text-muted"></i>{{ r.mart_name }}{% if r.road_address %} <span class="text-muted fw-normal small">({{ r.road_address }})</span>{% endif %}
+                            </div>
+                            <div class="text-muted small"><i class="fas fa-clock me-1"></i>{{ r.meetup_at|date:"Y.m.d (D) A g시" }}</div>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <div class="small d-flex align-items-center gap-1">
+                                <i class="fas fa-user-circle text-primary"></i>
+                                <span><strong>{{ r.created_by.name }}</strong></span>
+                            </div>
+                            <span class="badge badge-trust"><i class="fas fa-shield-alt me-1"></i>{{ r.host_trust_score|default:r.created_by.trust_score|floatformat:1 }}</span>
+                            {% if r.categories %}
+                            <div class="small d-flex flex-wrap gap-1">
+                                {% for c in r.categories %}
+                                <span class="badge badge-category" data-cat-code="{{ c }}">{{ c }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <span class="badge bg-secondary"><i class="fas fa-users me-1"></i>{{ r.current_participants }}/{{ r.max_participants }}</span>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="status-chip status-{{ r.status }}">
+                            {% if r.settlement_result %}정산완료{% else %}{{ r.get_status_display }}{% endif %}
+                        </span>
+
+                        {% if r.id in my_room_ids %}
+                        <button class="btn btn-sm btn-success btn-join" disabled>참여완료</button>
+                        {% else %}
+                        <button class="btn btn-sm btn-primary btn-join" {% if not r.is_joinable %}disabled{% endif %}>
+                            참여
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="room-ribbon"></div>
+        </div>
+        {% empty %}
+        <div class="text-center text-muted py-5">등록된 방이 없습니다. 첫 방을 만들어보세요!</div>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="panel-chat" style="display:none">
+    <div class="list-group">
+        {% for item in my_rooms_with_categories %}
+        {% with r=item.room %}
+        <div class="list-group-item d-flex justify-content-between align-items-center" data-room-id="{{ r.id }}">
+            <a class="text-decoration-none text-dark flex-fill" href="{% url 'accounts:chat_room' r.id %}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="mb-2">
+                            <div class="fw-bold mb-1">
+                                <i class="fas fa-map-marker-alt me-2 text-muted"></i>{{ r.mart_name }}{% if r.road_address %} <span class="text-muted fw-normal small">({{ r.road_address }})</span>{% endif %}
+                            </div>
+                            <div class="text-muted small"><i class="fas fa-clock me-1"></i>{{ r.meetup_at|date:"Y.m.d A g시" }}</div>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <div class="small d-flex align-items-center gap-1">
+                                <i class="fas fa-user-circle text-primary"></i>
+                                <span><strong>{{ r.created_by.name }}</strong></span>
+                            </div>
+                            <span class="badge badge-trust"><i class="fas fa-shield-alt me-1"></i>{{ r.host_trust_score|default:r.created_by.trust_score|floatformat:1 }}</span>
+                            {% if item.category_names %}
+                            <div class="small d-flex flex-wrap gap-1">
+                                {% for cat_name in item.category_names %}
+                                <span class="badge badge-category">{{ cat_name }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <span class="badge bg-secondary"><i class="fas fa-users me-1"></i>{{ r.current_participants }}/{{ r.max_participants }}</span>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="status-chip status-{{ r.status }}">
+                            {% if r.settlement_result %}정산완료{% else %}{{ r.get_status_display }}{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </a>
+            <div class="d-flex gap-1 ms-2">
+                {% if r.created_by == user %}
+                {% if not r.settlement_result %}
+                <button class="btn btn-sm btn-outline-warning btn-mark-done" title="{% if r.status == 'RECRUITING' %}모집 완료{% else %}모집중으로{% endif %}">
+                    <i class="fas fa-check"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger btn-delete" title="방 삭제">
+                    <i class="fas fa-trash"></i>
+                </button>
+                {% endif %}
+                {% else %}
+                <button class="btn btn-sm btn-outline-secondary btn-leave" title="나가기">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endwith %}
+        {% empty %}
+        <div class="text-center text-muted py-5">참여한 방이 없습니다.</div>
+        {% endfor %}
+    </div>
+    <div class="mt-3">
+        <a class="btn btn-outline-secondary" href="#" onclick="switchTab('find')"><i
+                class="fas fa-arrow-left me-1"></i>팀 찾기로</a>
+    </div>
+</div>
+
+<!-- AI 추천 패널 -->
+<div id="panel-ai" style="display:none">
+    <div class="card mb-3">
+        <div class="card-body d-flex justify-content-between align-items-center">
+            <div class="fw-bold"><i class="fas fa-magic me-2"></i>추천 결과</div>
+            <button class="btn btn-outline-secondary" id="ai-refetch"><i class="fas fa-sync-alt me-1"></i>다시 추천</button>
+        </div>
+    </div>
+    <div id="ai-list"></div>
+</div>
+
+<script>
+    // Category code -> name map (keep in sync with Room.CATEGORY_MAP)
+    const CATEGORY_MAP = { 1: '채소/과일', 2: '육류/유제품', 3: '해산물', 4: '쌀/곡류', 5: '냉장/냉동/인스턴트', 6: '음료/주류', 7: '건강식품', 8: '반려동물 용품', 9: '문구/패션/생활', 10: '기타' };
+    // 현재 사용자 ID
+    const CURRENT_USER_ID = {{ user.id }};
+    function switchTab(name) {
+        const find = document.getElementById('panel-find');
+        const chat = document.getElementById('panel-chat');
+        const ai = document.getElementById('panel-ai');
+        const tabFind = document.getElementById('tab-find');
+        const tabChat = document.getElementById('tab-chat');
+        const tabAi = document.getElementById('tab-ai');
+        
+        // 모든 탭 비활성화
+        tabFind.classList.remove('active');
+        tabChat.classList.remove('active');
+        tabAi.classList.remove('active');
+        find.style.display = 'none';
+        chat.style.display = 'none';
+        ai.style.display = 'none';
+        
+        // 선택된 탭 활성화
+        if (name === 'find') {
+            tabFind.classList.add('active');
+            find.style.display = '';
+        } else if (name === 'chat') {
+            tabChat.classList.add('active');
+            chat.style.display = '';
+        } else if (name === 'ai') {
+            tabAi.classList.add('active');
+            ai.style.display = '';
+        }
+    }
+
+    // URL 해시로 탭 선택 (#chat 이면 채팅 탭 오픈)
+    (function initTabFromHash() {
+        if (location.hash === '#chat') {
+            switchTab('chat');
+        } else if (location.hash === '#ai') {
+            switchTab('ai');
+        } else {
+            switchTab('find');
+        }
+        window.addEventListener('hashchange', () => {
+            if (location.hash === '#chat') switchTab('chat');
+            else if (location.hash === '#ai') switchTab('ai');
+            else switchTab('find');
+        });
+    })();
+
+    // URL 파라미터로 필터 값 초기화
+    (function initFiltersFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        const date = params.get('date');
+        const mart = params.get('mart');
+        const sort = params.get('sort');
+        
+        if (date) {
+            const dateInput = document.getElementById('filter-date');
+            if (dateInput) dateInput.value = date;
+        }
+        if (mart) {
+            const martInput = document.getElementById('filter-mart');
+            if (martInput) martInput.value = mart;
+        }
+        if (sort) {
+            const sortSelect = document.getElementById('filter-sort');
+            if (sortSelect) sortSelect.value = sort;
+        }
+    })();
+
+    function applyFilters() {
+        const q = new URLSearchParams();
+        const d = document.getElementById('filter-date').value;
+        const m = document.getElementById('filter-mart').value;
+        const sort = document.getElementById('filter-sort').value;
+        if (d) q.set('date', d);
+        if (m) q.set('mart', m);
+        if (sort) q.set('sort', sort);
+        window.location.search = q.toString();
+    }
+    ['filter-date', 'filter-mart', 'filter-sort'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('change', applyFilters); }
+    });
+
+
+    document.querySelectorAll('#rooms-list .room-card').forEach(card => {
+        const joinBtn = card.querySelector('.btn-join');
+        const roomId = card.getAttribute('data-room-id');
+        if (joinBtn) {
+            joinBtn.addEventListener('click', async () => {
+                // 확인창 표시
+                if (!confirm('참여하시겠습니까?')) {
+                    return;
+                }
+                
+                const res = await fetch(`{% url 'accounts:join_room' 0 %}`.replace('/0/', '/' + roomId + '/'), { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
+                const data = await res.json();
+                if (data.ok) {
+                    const participants = card.querySelector('.room-participants');
+                    if (participants) {
+                        participants.textContent = `인원 ${data.current}/${data.max}`;
+                    }
+                    // 참여 버튼을 참여완료로 변경
+                    joinBtn.textContent = '참여완료';
+                    joinBtn.disabled = true;
+                    joinBtn.classList.remove('btn-primary');
+                    joinBtn.classList.add('btn-success');
+                    if (data.status !== 'RECRUITING') {
+                        const chip = card.querySelector('.status-chip');
+                        chip.className = `status-chip status-${data.status}`;
+                        chip.textContent = data.settlement_result ? '정산완료' : (data.status === 'FULL' ? '인원 마감' : (data.status_text || '완료'));
+                    }
+                } else {
+                    alert('참여할 수 없습니다: ' + (data.message || data.status));
+                }
+            });
+        }
+    });
+
+    // 시간 드롭다운 초기화
+    (function initTime() {
+        const hour = document.getElementById('cr-hour');
+        const minute = document.getElementById('cr-minute');
+        const dateInput = document.getElementById('cr-date');
+        if (!hour || !minute || !dateInput) return;
+        
+        // 날짜 입력 필드의 최소값을 오늘로 설정
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        dateInput.min = `${year}-${month}-${day}`;
+        
+        for (let h = 1; h <= 12; h++) { const o = document.createElement('option'); o.value = h.toString().padStart(2, '0'); o.textContent = h; hour.appendChild(o); }
+        for (let m = 0; m < 60; m += 5) { const o = document.createElement('option'); o.value = m.toString().padStart(2, '0'); o.textContent = o.value; minute.appendChild(o); }
+        
+        // 날짜/시간 변경 시 과거 시간 필터링
+        function updateTimeOptions() {
+            const selectedDate = dateInput.value;
+            if (!selectedDate) {
+                // 날짜가 없으면 모든 옵션 활성화
+                Array.from(hour.options).forEach(opt => opt.disabled = false);
+                Array.from(minute.options).forEach(opt => opt.disabled = false);
+                return;
+            }
+            
+            const selectedDateObj = new Date(selectedDate + 'T00:00:00');
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const selectedDay = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate());
+            
+            const isToday = selectedDay.getTime() === today.getTime();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            
+            // 오늘 날짜인 경우 현재 시간 이후만 선택 가능
+            if (isToday) {
+                const ampmSelect = document.getElementById('cr-ampm');
+                const ampm = ampmSelect ? ampmSelect.value : 'AM';
+                
+                Array.from(hour.options).forEach(opt => {
+                    const hourVal = parseInt(opt.value);
+                    let hour24 = hourVal;
+                    
+                    // 현재 선택된 AM/PM에 따라 시간 계산
+                    if (ampm === 'PM' && hourVal < 12) hour24 = hourVal + 12;
+                    if (ampm === 'AM' && hourVal === 12) hour24 = 0;
+                    
+                    // 현재 시간보다 이전이면 비활성화
+                    if (hour24 < currentHour) {
+                        opt.disabled = true;
+                    } else if (hour24 === currentHour) {
+                        // 같은 시간이면 분도 체크
+                        opt.disabled = false;
+                        // 현재 시간과 같은 경우 분 필터링
+                        Array.from(minute.options).forEach(minOpt => {
+                            const minVal = parseInt(minOpt.value);
+                            if (minVal < currentMinute) {
+                                minOpt.disabled = true;
+                            } else {
+                                minOpt.disabled = false;
+                            }
+                        });
+                    } else {
+                        // 미래 시간이면 모든 분 선택 가능
+                        opt.disabled = false;
+                        Array.from(minute.options).forEach(minOpt => minOpt.disabled = false);
+                    }
+                });
+            } else {
+                // 미래 날짜면 모든 시간/분 선택 가능
+                Array.from(hour.options).forEach(opt => opt.disabled = false);
+                Array.from(minute.options).forEach(opt => opt.disabled = false);
+            }
+        }
+        
+        dateInput.addEventListener('change', updateTimeOptions);
+        document.getElementById('cr-ampm')?.addEventListener('change', updateTimeOptions);
+        hour.addEventListener('change', updateTimeOptions);
+    })();
+
+    // 마트 자동완성 더미 구현 (향후 공공데이터 API로 대체)
+    const martInput = document.getElementById('cr-mart');
+    const suggestBox = document.getElementById('cr-suggest');
+    let suggestTimer;
+    function hideSuggest() { suggestBox.style.display = 'none'; suggestBox.innerHTML = ''; }
+    let selectedAddr = '';
+    let selectedX = '';
+    let selectedY = '';
+    function showSuggest(items) {
+        suggestBox.innerHTML = '';
+        items.forEach(obj => {
+            const a = document.createElement('a');
+            a.href = '#'; a.className = 'list-group-item list-group-item-action';
+            a.innerHTML = `<div class="fw-bold">${(obj && obj.name) ? obj.name : ''}</div><div class="small text-muted">${(obj && obj.addr) ? obj.addr : ''}</div>`;
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                martInput.value = (obj && obj.name) ? obj.name : '';
+                selectedAddr = (obj && obj.addr) ? obj.addr : '';
+                selectedX = (obj && obj.x) ? obj.x : '';
+                selectedY = (obj && obj.y) ? obj.y : '';
+                hideSuggest();
+            });
+            suggestBox.appendChild(a);
+        });
+        suggestBox.style.display = items && items.length ? 'block' : 'none';
+    }
+    martInput?.addEventListener('input', () => {
+        clearTimeout(suggestTimer);
+        // 사용자가 입력을 변경하면 선택된 주소/좌표 초기화
+        selectedAddr = ''; selectedX = ''; selectedY = '';
+        const q = martInput.value.trim();
+        if (!q) { hideSuggest(); return; }
+        suggestTimer = setTimeout(async () => {
+            try {
+                const res = await fetch(`{% url 'accounts:mart_suggest' %}?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                showSuggest(data.results || []);
+            } catch (e) { hideSuggest(); }
+        }, 250);
+    });
+
+    // 생성하기
+    const submitBtn = document.getElementById('cr-submit');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+            const date = document.getElementById('cr-date').value;
+            const ampm = document.getElementById('cr-ampm').value;
+            const hour = document.getElementById('cr-hour').value;
+            const minute = document.getElementById('cr-minute').value;
+            const mart = document.getElementById('cr-mart').value.trim();
+            const max = document.getElementById('cr-max').value;
+            
+            // 카테고리 선택 확인
+            const selectedCategories = Array.from(document.querySelectorAll('#cr-categories input[type=checkbox]:checked'));
+            
+            // 필수 필드 검증
+            if (!date || !hour || !minute || !mart || selectedCategories.length === 0) {
+                // 에러 메시지 표시
+                const formEl = document.getElementById('create-room-form');
+                let help = document.getElementById('cr-help');
+                if (!help) {
+                    help = document.createElement('div');
+                    help.id = 'cr-help';
+                    help.className = 'form-text text-danger mt-2';
+                    formEl.appendChild(help);
+                }
+                
+                if (!date || !hour || !minute || !mart) {
+                    help.textContent = '조건을 모두 입력하지 않았습니다';
+                } else if (selectedCategories.length === 0) {
+                    help.textContent = '카테고리를 최소 하나 선택해주세요';
+                }
+                
+                // 필드 유효성 표시
+                document.getElementById('cr-date').classList.toggle('is-invalid', !date);
+                document.getElementById('cr-hour').classList.toggle('is-invalid', !hour);
+                document.getElementById('cr-minute').classList.toggle('is-invalid', !minute);
+                document.getElementById('cr-mart').classList.toggle('is-invalid', !mart);
+                
+                // 카테고리 영역에 빨간 테두리 표시
+                const categoriesDiv = document.getElementById('cr-categories');
+                if (selectedCategories.length === 0) {
+                    categoriesDiv.style.border = '2px solid #dc3545';
+                    categoriesDiv.style.borderRadius = '8px';
+                    categoriesDiv.style.padding = '8px';
+                } else {
+                    categoriesDiv.style.border = '';
+                    categoriesDiv.style.borderRadius = '';
+                    categoriesDiv.style.padding = '';
+                }
+                
+                return;
+            }
+            
+            // 에러 메시지 제거
+            const helpOld = document.getElementById('cr-help');
+            if (helpOld) helpOld.textContent = '';
+            
+            // 유효성 표시 제거
+            document.getElementById('cr-date').classList.remove('is-invalid');
+            document.getElementById('cr-hour').classList.remove('is-invalid');
+            document.getElementById('cr-minute').classList.remove('is-invalid');
+            document.getElementById('cr-mart').classList.remove('is-invalid');
+            const categoriesDiv = document.getElementById('cr-categories');
+            categoriesDiv.style.border = '';
+            categoriesDiv.style.borderRadius = '';
+            categoriesDiv.style.padding = '';
+            
+            // 시간 계산
+            let hh = parseInt(hour, 10);
+            if (ampm === 'PM' && hh < 12) hh += 12;
+            if (ampm === 'AM' && hh === 12) hh = 0;
+            const dt = `${date}T${hh.toString().padStart(2, '0')}:${minute}:00`;
+            
+            // 과거 날짜/시간 검증
+            const selectedDateTime = new Date(dt);
+            const now = new Date();
+            if (selectedDateTime <= now) {
+                const formEl = document.getElementById('create-room-form');
+                let help = document.getElementById('cr-help');
+                if (!help) {
+                    help = document.createElement('div');
+                    help.id = 'cr-help';
+                    help.className = 'form-text text-danger mt-2';
+                    formEl.appendChild(help);
+                }
+                help.textContent = '이미 지난 날짜와 시간은 선택할 수 없습니다';
+                document.getElementById('cr-date').classList.add('is-invalid');
+                document.getElementById('cr-hour').classList.add('is-invalid');
+                document.getElementById('cr-minute').classList.add('is-invalid');
+                return;
+            }
+
+            const form = new FormData();
+            form.append('mart', mart);
+            form.append('meetup_at', dt);
+            form.append('max_participants', max);
+            if (selectedAddr) form.append('road_address', selectedAddr);
+            if (selectedX) form.append('x', selectedX);
+            if (selectedY) form.append('y', selectedY);
+            selectedCategories.forEach(el => form.append('categories', el.value));
+            let data;
+            try {
+                const res = await fetch("{% url 'accounts:create_room' %}", { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: form });
+                data = await res.json();
+            } catch (e) { data = { ok: false, error: 'NETWORK' }; }
+            if (data.ok) {
+                const modalEl = document.getElementById('createRoomModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                modal?.hide();
+                appendRoomCard(data.room);
+                document.getElementById('create-room-form').reset();
+                const helpOld = document.getElementById('cr-help'); if (helpOld) { helpOld.textContent = ''; }
+                const suggest = document.getElementById('cr-suggest'); if (suggest) { suggest.style.display = 'none'; suggest.innerHTML = ''; }
+                // 카테고리 영역 스타일 초기화
+                const categoriesDiv = document.getElementById('cr-categories');
+                if (categoriesDiv) {
+                    categoriesDiv.style.border = '';
+                    categoriesDiv.style.borderRadius = '';
+                    categoriesDiv.style.padding = '';
+                }
+            } else {
+                const formEl = document.getElementById('create-room-form');
+                let help = document.getElementById('cr-help');
+                if (!help) { help = document.createElement('div'); help.id = 'cr-help'; help.className = 'form-text text-danger mt-2'; formEl.appendChild(help); }
+                const map = {
+                    BAD_MAX: '최대 인원 값이 올바르지 않습니다',
+                    BAD_DATETIME: '날짜/시간 형식이 올바르지 않습니다',
+                    PAST_DATETIME: data.message || '이미 지난 날짜와 시간은 선택할 수 없습니다',
+                    MISSING_FIELDS: data.message || '조건을 모두 입력하지 않았습니다',
+                    NO_CATEGORIES: data.message || '카테고리를 최소 하나 선택해주세요',
+                    NETWORK: '네트워크 오류'
+                };
+                help.textContent = map[data.error] || data.message || '생성 중 오류가 발생했습니다';
+                
+                // 카테고리 오류 시 시각적 표시
+                if (data.error === 'NO_CATEGORIES') {
+                    const categoriesDiv = document.getElementById('cr-categories');
+                    if (categoriesDiv) {
+                        categoriesDiv.style.border = '2px solid #dc3545';
+                        categoriesDiv.style.borderRadius = '8px';
+                        categoriesDiv.style.padding = '8px';
+                    }
+                }
+            }
+        });
+    }
+
+    // 카테고리 선택 시 에러 표시 제거
+    const categoryCheckboxes = document.querySelectorAll('#cr-categories input[type=checkbox]');
+    categoryCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            const selectedCategories = Array.from(document.querySelectorAll('#cr-categories input[type=checkbox]:checked'));
+            const categoriesDiv = document.getElementById('cr-categories');
+            if (selectedCategories.length > 0 && categoriesDiv) {
+                categoriesDiv.style.border = '';
+                categoriesDiv.style.borderRadius = '';
+                categoriesDiv.style.padding = '';
+                const help = document.getElementById('cr-help');
+                if (help && help.textContent.includes('카테고리')) {
+                    help.textContent = '';
+                }
+            }
+        });
+    });
+    
+    // AI 추천 카테고리는 선택사항이므로 에러 표시 제거 로직 불필요
+    
+    // AI 추천 필드 입력 시 에러 표시 제거하지 않음 (추천받기 버튼 클릭 시에만 업데이트)
+
+    function appendRoomCard(room) {
+        const container = document.getElementById('rooms-list');
+        const idx = (container.querySelectorAll('.room-card').length || 0) + 1;
+        const div = document.createElement('div');
+        div.className = 'room-card d-flex align-items-center';
+        div.setAttribute('data-room-id', room.id);
+        div.innerHTML = `
+            <div class="me-3 h4 mb-0">${idx}.</div>
+            <div class="flex-fill">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="mb-2">
+                            <div class="fw-bold mb-1">
+                                <i class="fas fa-map-marker-alt me-2 text-muted"></i>${room.mart}${room.road_address ? ` <span class="text-muted fw-normal small">(${room.road_address})</span>` : ''}
+                            </div>
+                            <div class="text-muted small"><i class="fas fa-clock me-1"></i>${new Date(room.meetup_at).toLocaleString()}</div>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <div class="small d-flex align-items-center gap-1">
+                                <i class="fas fa-user-circle text-primary"></i>
+                                <span><strong>${room.host_name || '알 수 없음'}</strong></span>
+                            </div>
+                            <span class="badge badge-trust"><i class="fas fa-shield-alt me-1"></i>${room.host_trust_score || 0}</span>
+                            ${(room.categories && room.categories.length) ? `<div class="small d-flex flex-wrap gap-1">${room.categories.map(c => `<span class="badge badge-category">${CATEGORY_MAP[c] || c}</span>`).join('')}</div>` : ''}
+                            <span class="badge bg-secondary"><i class="fas fa-users me-1"></i>${room.current}/${room.max}</span>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="status-chip status-${room.status}">${room.settlement_result ? '정산완료' : (room.status_text || '')}</span>
+                        <button class="btn btn-sm btn-primary btn-join">참여</button>
+                    </div>
+                </div>
+            </div>
+            <div class="room-ribbon"></div>`;
+        // 빈 상태 문구 제거
+        const emptyState = container.querySelector('.text-center.text-muted');
+        if (emptyState) { emptyState.remove(); }
+        container.prepend(div);
+
+        // 내 채팅 목록에도 추가
+        const chatList = document.querySelector('#panel-chat .list-group');
+        if (chatList) {
+            const chatEmpty = chatList.querySelector('.text-center.text-muted');
+            if (chatEmpty) { chatEmpty.remove(); }
+            const a = document.createElement('a');
+            a.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+            a.href = `{% url 'accounts:chat_room' 0 %}`.replace('/0/', `/${room.id}/`);
+            const categoriesHtml = (room.categories && room.categories.length) 
+                ? `<div class="small d-flex flex-wrap gap-1">${room.categories.map(c => `<span class="badge badge-category" data-cat-code="${c}">${CATEGORY_MAP[c] || c}</span>`).join('')}</div>` 
+                : '';
+            a.innerHTML = `
+                <div>
+                    <div class="mb-2">
+                        <div class="fw-bold mb-1">
+                            <i class="fas fa-map-marker-alt me-2 text-muted"></i>${room.mart}${room.road_address ? ` <span class="text-muted fw-normal small">(${room.road_address})</span>` : ''}
+                        </div>
+                        <div class="text-muted small"><i class="fas fa-clock me-1"></i>${new Date(room.meetup_at).toLocaleString()}</div>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <div class="small d-flex align-items-center gap-1">
+                            <i class="fas fa-user-circle text-primary"></i>
+                            <span><strong>${room.host_name || '알 수 없음'}</strong></span>
+                        </div>
+                        <span class="badge badge-trust"><i class="fas fa-shield-alt me-1"></i>${room.host_trust_score || 0}</span>
+                        ${categoriesHtml}
+                        <span class="badge bg-secondary"><i class="fas fa-users me-1"></i>${room.current}/${room.max}</span>
+                        <span class="badge bg-${room.status === 'RECRUITING' ? 'success' : room.status === 'FULL' ? 'warning' : 'secondary'}">${room.status_text || ''}</span>
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right text-muted"></i>`;
+            chatList.prepend(a);
+        }
+        const btn = div.querySelector('.btn-join');
+        btn.addEventListener('click', async () => {
+            // 확인창 표시
+            if (!confirm('참여하시겠습니까?')) {
+                return;
+            }
+            
+            const res = await fetch(`{% url 'accounts:join_room' 0 %}`.replace('/0/', '/' + room.id + '/'), { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
+            const data = await res.json();
+            if (data.ok) {
+                const participants = div.querySelector('.room-participants');
+                if (participants) {
+                    participants.textContent = `인원 ${data.current}/${data.max}`;
+                }
+                // 참여 버튼을 참여완료로 변경
+                btn.textContent = '참여완료';
+                btn.disabled = true;
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-success');
+                if (data.status !== 'RECRUITING') {
+                    const chip = div.querySelector('.status-chip');
+                    chip.className = `status-chip status-${data.status}`;
+                    chip.textContent = data.settlement_result ? '정산완료' : (data.status === 'FULL' ? '인원 마감' : (data.status_text || '완료'));
+                }
+            }
+        });
+    }
+
+    function clearAiModalPreview() {
+        const box = document.getElementById('ai-results');
+        const wrap = document.getElementById('ai-results-box');
+        if (box) box.textContent = '';
+        if (wrap) wrap.style.display = 'none';
+    }
+
+    // AI 매칭 날짜/시간 제한 초기화
+    (function initAiDateTime() {
+        const aiDate = document.getElementById('ai-date');
+        const aiTime = document.getElementById('ai-time');
+        if (!aiDate || !aiTime) return;
+        
+        // 날짜 입력 필드의 최소값을 오늘로 설정
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        aiDate.min = `${year}-${month}-${day}`;
+    })();
+
+    // Geolocation
+    const btnLoc = document.getElementById('ai-loc');
+    const finalStatusEl = document.getElementById('ai-final-status');
+    function updateFinalLocation(label, lat, lng) {
+        if (!finalStatusEl) return;
+        const latStr = String(lat);
+        const lngStr = String(lng);
+        finalStatusEl.textContent = `최종 위치: ${label} (lat: ${latStr.slice(0, 7)}, lng: ${lngStr.slice(0, 7)})`;
+    }
+    btnLoc?.addEventListener('click', () => {
+        const status = document.getElementById('ai-loc-status');
+        if (!navigator.geolocation) { status.textContent = '브라우저가 위치를 지원하지 않아요'; return; }
+        status.textContent = '위치 가져오는 중...';
+        navigator.geolocation.getCurrentPosition((pos) => {
+            const lat = pos.coords.latitude.toString();
+            const lng = pos.coords.longitude.toString();
+            document.getElementById('ai-lat').value = lat;
+            document.getElementById('ai-lng').value = lng;
+            status.textContent = `위치 설정됨 (lat: ${lat.slice(0, 7)}, lng: ${lng.slice(0, 7)})`;
+            updateFinalLocation('내 위치', lat, lng);
+            
+            // 위치 설정 완료 (에러 표시는 추천받기 버튼 클릭 시에만 업데이트)
+        }, () => { status.textContent = '위치 접근이 거부되었어요'; }, { enableHighAccuracy: true, timeout: 5000 });
+    });
+
+    // Kakao 주소 → 좌표 검색
+    const btnAddrSearch = document.getElementById('ai-addr-search');
+    btnAddrSearch?.addEventListener('click', async () => {
+        const q = document.getElementById('ai-addr').value.trim();
+        const status = document.getElementById('ai-addr-status');
+        if (!q) { 
+            status.textContent = '주소를 입력해 주세요'; 
+            document.getElementById('ai-addr').classList.add('is-invalid');
+            return; 
+        }
+        status.textContent = '주소 검색 중...';
+        try {
+            const res = await fetch(`{% url 'accounts:geocode' %}?q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                document.getElementById('ai-lat').value = String(data.lat);
+                document.getElementById('ai-lng').value = String(data.lng);
+                status.textContent = `설정됨: ${data.road_address || ''} (lat: ${String(data.lat).slice(0, 7)}, lng: ${String(data.lng).slice(0, 7)})`;
+                updateFinalLocation(data.road_address || '주소 선택', data.lat, data.lng);
+                
+                // 위치 설정 완료 (에러 표시는 추천받기 버튼 클릭 시에만 업데이트)
+            } else {
+                status.textContent = '주소를 찾지 못했습니다';
+                document.getElementById('ai-addr').classList.add('is-invalid');
+            }
+        } catch (e) {
+            status.textContent = '네트워크 오류';
+            document.getElementById('ai-addr').classList.add('is-invalid');
+        }
+    });
+
+    // Submit recommend request
+    const btnAiSubmit = document.getElementById('ai-submit');
+    if (!btnAiSubmit) {
+        console.error('AI submit button not found');
+    } else {
+        btnAiSubmit.addEventListener('click', async () => {
+            const aiForm = document.getElementById('ai-form');
+            let aiHelp = document.getElementById('ai-help');
+            
+            // 모든 필드 검증
+            const d = document.getElementById('ai-date').value;
+            const t = document.getElementById('ai-time').value;
+            let lat = document.getElementById('ai-lat').value;
+            let lng = document.getElementById('ai-lng').value;
+            const addr = document.getElementById('ai-addr').value.trim();
+            const checked = Array.from(document.querySelectorAll('#ai-categories input[type=checkbox]:checked')).map(el => el.value);
+            
+            // 위치가 없고 주소가 입력되어 있으면 자동 지오코딩 시도
+            if (!lat || !lng) {
+                if (addr) {
+                    const status = document.getElementById('ai-addr-status');
+                    status.textContent = '주소 검색 중...';
+                    try {
+                        const r = await fetch(`{% url 'accounts:geocode' %}?q=${encodeURIComponent(addr)}`);
+                        const j = await r.json();
+                        if (r.ok && j.ok) {
+                            lat = String(j.lat); lng = String(j.lng);
+                            document.getElementById('ai-lat').value = lat;
+                            document.getElementById('ai-lng').value = lng;
+                            status.textContent = `설정됨: ${j.road_address || ''} (lat: ${lat.slice(0, 7)}, lng: ${lng.slice(0, 7)})`;
+                            updateFinalLocation(j.road_address || '주소 선택', lat, lng);
+                        }
+                    } catch { }
+                }
+            }
+            
+            // 필수 필드 검증 (카테고리는 선택사항)
+            const errors = [];
+            if (!d) errors.push('날짜를 입력하지 않았습니다.');
+            if (!t) errors.push('시간을 입력하지 않았습니다.');
+            if (!lat || !lng) errors.push('위치를 입력하지 않았습니다.');
+            
+            // 필드 유효성 표시 제거
+            const aiDate = document.getElementById('ai-date');
+            if (aiDate) {
+                aiDate.classList.remove('is-invalid');
+                aiDate.style.border = '';
+                aiDate.style.borderRadius = '';
+            }
+            const aiTime = document.getElementById('ai-time');
+            if (aiTime) {
+                aiTime.classList.remove('is-invalid');
+                aiTime.style.border = '';
+                aiTime.style.borderRadius = '';
+            }
+            const aiLocationSection = document.getElementById('ai-location-section');
+            if (aiLocationSection) {
+                aiLocationSection.style.border = '';
+                aiLocationSection.style.borderRadius = '';
+                aiLocationSection.style.padding = '';
+            }
+            
+            if (errors.length > 0) {
+                // 에러 메시지 표시
+                if (!aiHelp) {
+                    aiHelp = document.createElement('div');
+                    aiHelp.id = 'ai-help';
+                    aiHelp.className = 'form-text text-danger mt-2';
+                    aiForm.appendChild(aiHelp);
+                }
+                
+                // 여러 필드가 입력되지 않았으면 일반 메시지만, 하나만 입력되지 않았으면 구체적인 메시지 표시
+                if (errors.length > 1) {
+                    aiHelp.innerHTML = '<div>조건을 모두 입력하지 않았습니다.</div>';
+                } else {
+                    aiHelp.innerHTML = `<div>${errors[0]}</div>`;
+                }
+                
+                // 필드 유효성 표시
+                if (!d) {
+                    const aiDate = document.getElementById('ai-date');
+                    aiDate.classList.add('is-invalid');
+                    aiDate.style.border = '2px solid #dc3545';
+                    aiDate.style.borderRadius = '8px';
+                }
+                if (!t) {
+                    const aiTime = document.getElementById('ai-time');
+                    if (aiTime) {
+                        aiTime.classList.add('is-invalid');
+                        aiTime.style.border = '2px solid #dc3545';
+                        aiTime.style.borderRadius = '8px';
+                    }
+                }
+                if (!lat || !lng) {
+                    const aiLocationSection = document.getElementById('ai-location-section');
+                    if (aiLocationSection) {
+                        aiLocationSection.style.border = '2px solid #dc3545';
+                        aiLocationSection.style.borderRadius = '8px';
+                        aiLocationSection.style.padding = '8px';
+                    }
+                }
+                return;
+            }
+            
+            // 모든 필드가 입력되었으면 에러 메시지 제거
+            if (aiHelp) {
+                aiHelp.remove();
+            }
+            
+            // 과거 날짜/시간 검증
+            if (t) {
+                const selectedDateTime = new Date(`${d}T${t}:00`);
+                const now = new Date();
+                if (selectedDateTime <= now) {
+                    const formEl = document.getElementById('ai-form');
+                    let help = document.getElementById('ai-help');
+                    if (!help) {
+                        help = document.createElement('div');
+                        help.id = 'ai-help';
+                        help.className = 'form-text text-danger mt-2';
+                        formEl.appendChild(help);
+                    }
+                    help.innerHTML = '<div>이미 지난 날짜와 시간은 선택할 수 없습니다</div>';
+                    const aiDate = document.getElementById('ai-date');
+                    const aiTime = document.getElementById('ai-time');
+                    if (aiDate) {
+                        aiDate.classList.add('is-invalid');
+                        aiDate.style.border = '2px solid #dc3545';
+                        aiDate.style.borderRadius = '8px';
+                    }
+                    if (aiTime) {
+                        aiTime.classList.add('is-invalid');
+                        aiTime.style.border = '2px solid #dc3545';
+                        aiTime.style.borderRadius = '8px';
+                    }
+                    return;
+                }
+            }
+            
+            // 모든 필드가 입력되었으면 진행
+            const params = new URLSearchParams();
+            // 시간 형식: input type="time"은 "HH:MM" 형식으로 반환
+            params.set('desired_time', `${d}T${t}:00Z`);
+            params.set('lat', lat);
+            params.set('lng', lng);
+            if (checked.length) params.set('categories', checked.join(','));
+
+        // Show calculating state in AI panel and switch immediately
+        const aiList = document.getElementById('ai-list');
+        aiList.innerHTML = '<div class="text-center text-muted py-5">추천 계산 중...</div>';
+        switchTab('ai');
+        // move focus to AI tab and hide modal to avoid aria-hidden focus issues
+        const focusTarget = document.getElementById('tab-ai');
+        if (focusTarget && typeof focusTarget.focus === 'function') { focusTarget.focus(); }
+        const modalElForSubmit = document.getElementById('aiRecommendModal');
+        const modalForSubmit = bootstrap.Modal.getInstance(modalElForSubmit);
+        if (document.activeElement && typeof document.activeElement.blur === 'function') { document.activeElement.blur(); }
+        modalForSubmit?.hide();
+
+        // Disable button while loading
+        const originalText = btnAiSubmit.textContent;
+        btnAiSubmit.disabled = true;
+        btnAiSubmit.textContent = '계산 중...';
+
+        try {
+            const nearbyUrl = "{% url 'accounts:nearby_marts' %}" || '/api/nearby_marts/';
+            const fullUrl = `${nearbyUrl}?${params.toString()}`;
+            console.log('AI recommendation request:', fullUrl);
+            console.log('Params:', params.toString());
+            const res = await fetch(fullUrl);
+            let data;
+            try { 
+                data = await res.json(); 
+                console.log('AI recommendation response:', data);
+            } catch (e) { 
+                console.error('Failed to parse JSON:', e);
+                data = {}; 
+            }
+            if (res.ok && data && data.ok) {
+                if (!data.results || !data.results.length) {
+                    aiList.innerHTML = '<div class="text-center text-muted py-5">조건에 맞는 추천이 없습니다.</div>';
+                } else {
+                    renderAiPanel(data.results);
+                }
+                // modal already hidden above
+            } else {
+                let msg = '오류가 발생했습니다';
+                if (data && data.error) {
+                    if (data.error === 'AI components not loaded') {
+                        msg = 'AI 모델이 로드되지 않았습니다. 관리자에게 문의하세요.';
+                    } else if (data.message) {
+                        msg = data.message;
+                    } else {
+                        msg = data.error;
+                    }
+                } else if (res.status) {
+                    msg = `오류가 발생했습니다 (status ${res.status})`;
+                }
+                console.error('AI recommendation error:', data);
+                aiList.innerHTML = `<div class="text-center text-danger py-5">${msg}</div>`;
+            }
+        } catch (e) {
+            console.error('AI recommendation error:', e);
+            aiList.innerHTML = `<div class="text-center text-danger py-5">네트워크 오류: ${e.message || '알 수 없는 오류'}</div>`;
+        } finally {
+            btnAiSubmit.disabled = false;
+            btnAiSubmit.textContent = originalText;
+        }
+        });
+    }
+
+    function renderAiPanel(results) {
+        const container = document.getElementById('ai-list');
+        container.innerHTML = '';
+        if (!results || !results.length) {
+            container.innerHTML = '<div class="text-center text-muted py-5">추천 결과가 없습니다.</div>';
+            return;
+        }
+        results.forEach((r, idx) => {
+            const div = document.createElement('div');
+            div.className = 'room-card d-flex align-items-center';
+            div.setAttribute('data-room-id', r.id);
+            div.innerHTML = `
+                <div class="me-3 h4 mb-0">${idx + 1}.</div>
+                <div class="flex-fill">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="mb-2">
+                                <div class="fw-bold mb-1">
+                                    <i class="fas fa-map-marker-alt me-2 text-muted"></i>${r.mart}${r.road_address ? ` <span class="text-muted fw-normal small">(${r.road_address})</span>` : ''}
+                                </div>
+                                <div class="text-muted small"><i class="fas fa-clock me-1"></i>${new Date(r.meetup_at).toLocaleString()}</div>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <div class="small d-flex align-items-center gap-1">
+                                    <i class="fas fa-user-circle text-primary"></i>
+                                    <span><strong>${r.host_name || '알 수 없음'}</strong></span>
+                                </div>
+                                <span class="badge badge-trust"><i class="fas fa-shield-alt me-1"></i>${(typeof r.host_trust_score === 'number') ? r.host_trust_score.toFixed(1) : (r.host_trust_score || '0.0')}</span>
+                                ${(r.categories && r.categories.length) ? `<div class="small d-flex flex-wrap gap-1">${r.categories.map(c => `<span class="badge badge-category">${CATEGORY_MAP[c] || c}</span>`).join('')}</div>` : ''}
+                                <span class="badge bg-secondary"><i class="fas fa-users me-1"></i>${r.current}/${r.max}</span>
+                            </div>
+                            <div class="mt-1">
+                                <span class="badge bg-warning text-dark"><i class="fas fa-star me-1"></i>매칭률: ${(typeof r.score === 'number') ? parseFloat((r.score * 100).toFixed(1)) + '%' : (r.score || '-')}</span>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="status-chip status-${r.status}">${r.settlement_result ? '정산완료' : (r.status_text || '')}</span>
+                            <button class="btn btn-sm btn-primary btn-join">참여</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="room-ribbon"></div>`;
+            container.appendChild(div);
+            const btn = div.querySelector('.btn-join');
+            btn.addEventListener('click', async () => {
+                // 확인창 표시
+                if (!confirm('참여하시겠습니까?')) {
+                    return;
+                }
+                
+                const res = await fetch(`{% url 'accounts:join_room' 0 %}`.replace('/0/', '/' + r.id + '/'), { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
+                const data = await res.json();
+                if (data.ok) {
+                    const participants = div.querySelector('.room-participants');
+                    if (participants) {
+                        participants.textContent = `인원 ${data.current}/${data.max}`;
+                    }
+                    // 참여 버튼을 참여완료로 변경
+                    btn.textContent = '참여완료';
+                    btn.disabled = true;
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-success');
+                    if (data.status !== 'RECRUITING') btn.disabled = true;
+                } else {
+                    alert('참여할 수 없습니다: ' + (data.message || data.status));
+                }
+            });
+        });
+        // localStorage에 결과 저장 (사용자별로 분리)
+        try {
+            localStorage.setItem(`ai_recommendation_results_${CURRENT_USER_ID}`, JSON.stringify(results));
+        } catch (e) {
+            console.warn('Failed to save AI results to localStorage:', e);
+        }
+    }
+
+    // AI 추천 버튼 클릭 이벤트
+    const btnAiOpen = document.getElementById('btn-ai');
+    if (btnAiOpen) {
+        btnAiOpen.addEventListener('click', () => {
+            clearAiModalPreview();
+            const modal = new bootstrap.Modal(document.getElementById('aiRecommendModal'));
+            modal.show();
+        });
+    }
+
+    // 다시 추천 버튼
+    document.getElementById('ai-refetch')?.addEventListener('click', () => {
+        clearAiModalPreview();
+        const modal = new bootstrap.Modal(document.getElementById('aiRecommendModal'));
+        modal.show();
+    });
+
+    function getCsrf() {
+        const name = 'csrftoken=';
+        const cookies = document.cookie.split(';');
+        for (const c of cookies) {
+            const t = c.trim();
+            if (t.startsWith(name)) return t.substring(name.length);
+        }
+        return '';
+    }
+
+    // 채팅 탭의 버튼 이벤트 처리
+    document.querySelectorAll('#panel-chat .list-group-item').forEach(item => {
+        const roomId = item.getAttribute('data-room-id');
+        if (!roomId) return;
+
+        // 나가기 버튼
+        const btnLeave = item.querySelector('.btn-leave');
+        if (btnLeave) {
+            btnLeave.addEventListener('click', async (e) => {
+                e.preventDefault();
+                if (!confirm('정말 이 방에서 나가시겠습니까?')) return;
+
+                const res = await fetch(`{% url 'accounts:leave_room' 0 %}`.replace('/0/', '/' + roomId + '/'), {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrf() }
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    item.remove();
+                    // 빈 상태 확인
+                    const chatList = document.querySelector('#panel-chat .list-group');
+                    if (chatList.querySelectorAll('.list-group-item').length === 0) {
+                        chatList.innerHTML = '<div class="text-center text-muted py-5">참여한 방이 없습니다.</div>';
+                    }
+                } else {
+                    alert('오류가 발생했습니다.');
+                }
+            });
+        }
+
+        // 삭제 버튼
+        const btnDelete = item.querySelector('.btn-delete');
+        if (btnDelete) {
+            btnDelete.addEventListener('click', async (e) => {
+                e.preventDefault();
+                if (!confirm('정말 이 방을 삭제하시겠습니까? 모든 채팅 내용이 사라집니다.')) return;
+
+                const res = await fetch(`{% url 'accounts:delete_room' 0 %}`.replace('/0/', '/' + roomId + '/'), {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrf() }
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    item.remove();
+                    // 빈 상태 확인
+                    const chatList = document.querySelector('#panel-chat .list-group');
+                    if (chatList.querySelectorAll('.list-group-item').length === 0) {
+                        chatList.innerHTML = '<div class="text-center text-muted py-5">참여한 방이 없습니다.</div>';
+                    }
+                } else {
+                    if (data.error === 'NOT_OWNER') {
+                        alert('방장만 삭제할 수 있습니다.');
+                    } else {
+                        alert('오류가 발생했습니다.');
+                    }
+                }
+            });
+        }
+
+        // 모집 완료/모집중 토글 버튼
+        const btnMarkDone = item.querySelector('.btn-mark-done');
+        if (btnMarkDone) {
+            btnMarkDone.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const statusChip = item.querySelector('.status-chip');
+                const isCurrentlyRecruiting = statusChip && statusChip.textContent.includes('모집중');
+                const confirmMsg = isCurrentlyRecruiting 
+                    ? '모집을 완료하시겠습니까?' 
+                    : '다시 모집중으로 변경하시겠습니까?';
+                
+                if (!confirm(confirmMsg)) return;
+
+                const res = await fetch(`{% url 'accounts:mark_room_done' 0 %}`.replace('/0/', '/' + roomId + '/'), {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrf() }
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    // 상태 칩 업데이트
+                    if (statusChip) {
+                        if (data.status === 'DONE') {
+                            statusChip.className = 'status-chip status-DONE';
+                            statusChip.textContent = '완료';
+                            btnMarkDone.title = '모집중으로';
+                        } else {
+                            statusChip.className = 'status-chip status-RECRUITING';
+                            statusChip.textContent = '모집중';
+                            btnMarkDone.title = '모집 완료';
+                        }
+                    }
+                } else {
+                    if (data.error === 'NOT_OWNER') {
+                        alert('방장만 변경할 수 있습니다.');
+                    } else if (data.error === 'TIME_EXPIRED') {
+                        alert(data.message || '약속 시간이 지났거나 10분 전 이내입니다. 상태를 변경할 수 없습니다.');
+                    } else {
+                        alert('오류가 발생했습니다.');
+                    }
+                }
+            });
+        }
+    });
+
+    // Render server-side category badges from codes
+    (function renderServerCategoryBadges() {
+        document.querySelectorAll('[data-cat-code]').forEach(el => {
+            const code = el.getAttribute('data-cat-code');
+            el.textContent = CATEGORY_MAP[code] || CATEGORY_MAP[Number(code)] || code;
+        });
+    })();
+
+    // 페이지 로드 시 저장된 AI 추천 결과 복원 (사용자별로 분리)
+    (function restoreAiResults() {
+        try {
+            const savedResults = localStorage.getItem(`ai_recommendation_results_${CURRENT_USER_ID}`);
+            if (savedResults) {
+                const results = JSON.parse(savedResults);
+                if (results && results.length > 0) {
+                    renderAiPanel(results);
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to restore AI results from localStorage:', e);
+        }
+    })();
+
+    // 알림 기능
+    const notiBadge = document.getElementById('noti-badge');
+    const notificationList = document.getElementById('notification-list');
+    
+    function updateNotificationBadge() {
+        fetch("{% url 'accounts:get_unread_count' %}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok && data.count > 0) {
+                    notiBadge.textContent = data.count;
+                    notiBadge.style.display = 'block';
+                } else {
+                    notiBadge.style.display = 'none';
+                }
+            })
+            .catch(err => console.error('Failed to get unread count:', err));
+    }
+    
+    function loadNotifications() {
+        fetch("{% url 'accounts:get_notifications' %}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok && data.notifications.length > 0) {
+                    notificationList.innerHTML = data.notifications.map(n => {
+                        // 방 삭제 알림은 이동 버튼 표시하지 않음
+                        const moveButton = (n.type === 'DELETE' || !n.room_id) ? '' : 
+                            `<button class="btn btn-sm btn-outline-primary ms-2" onclick="location.href='{% url 'accounts:chat_room' 0 %}'.replace('/0/', '/${n.room_id}/')">
+                                이동
+                            </button>`;
+                        return `
+                        <div class="border-bottom p-2 ${n.is_read ? '' : 'bg-light'}" data-noti-id="${n.id}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-fill">
+                                    <div class="small text-muted">${new Date(n.created_at).toLocaleString('ko-KR')}</div>
+                                    <div class="fw-bold">${n.room_name}</div>
+                                    <div>${n.message}</div>
+                                </div>
+                                ${moveButton}
+                            </div>
+                        </div>
+                    `;
+                    }).join('');
+                } else {
+                    notificationList.innerHTML = '<div class="text-center text-muted py-5">알림이 없습니다.</div>';
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load notifications:', err);
+                notificationList.innerHTML = '<div class="text-center text-danger py-5">알림을 불러오는데 실패했습니다.</div>';
+            });
+    }
+    
+    // 알림 모달 열릴 때 알림 목록 로드
+    document.getElementById('notificationModal')?.addEventListener('show.bs.modal', () => {
+        loadNotifications();
+    });
+    
+    // 알림 클릭 시 읽음 처리
+    notificationList?.addEventListener('click', (e) => {
+        const notiItem = e.target.closest('[data-noti-id]');
+        if (notiItem) {
+            const notiId = notiItem.getAttribute('data-noti-id');
+            fetch(`{% url 'accounts:mark_notification_read' 0 %}`.replace('/0/', '/' + notiId + '/'), {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrf() }
+            }).then(() => {
+                updateNotificationBadge();
+                notiItem.classList.remove('bg-light');
+            });
+        }
+    });
+    
+    // 초기 알림 배지 업데이트
+    updateNotificationBadge();
+    
+    // 30초마다 알림 배지 업데이트
+    setInterval(updateNotificationBadge, 30000);
+</script>
+
+{% endblock %}

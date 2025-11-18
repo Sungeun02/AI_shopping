@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Together Market - 함께하는 쇼핑{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div class="row align-items-center min-vh-100">
+            <div class="col-lg-6">
+                <div class="hero-content">
+                    <h1 class="display-4 fw-bold text-primary mb-4">
+                        <i class="fas fa-shopping-cart me-3"></i>
+                        Together Market
+                    </h1>
+                    <p class="lead text-muted mb-4">
+                        AI와 함께하는 스마트 쇼핑 플랫폼<br>
+                        개인화된 추천으로 더 나은 쇼핑 경험을 제공합니다
+                    </p>
+                    <div class="hero-features mb-5">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="feature-item">
+                                    <i class="fas fa-robot text-primary me-2"></i>
+                                    <span>AI 추천 시스템</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="feature-item">
+                                    <i class="fas fa-users text-primary me-2"></i>
+                                    <span>커뮤니티 기반</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="feature-item">
+                                    <i class="fas fa-chart-line text-primary me-2"></i>
+                                    <span>가격 비교</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="feature-item">
+                                    <i class="fas fa-star text-primary me-2"></i>
+                                    <span>개인화 서비스</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-buttons">
+                        <a href="{% url 'accounts:login' %}" class="btn btn-primary btn-lg me-3">
+                            <i class="fas fa-play me-2"></i>시작하기
+                        </a>
+                        <a href="{% url 'accounts:signup' %}" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-user-plus me-2"></i>회원가입
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="hero-image text-center">
+                    <div class="shopping-illustration">
+                        <i class="fas fa-shopping-bag text-primary" style="font-size: 15rem; opacity: 0.1;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="features-section py-5 bg-light">
+        <div class="container">
+            <div class="row text-center mb-5">
+                <div class="col-12">
+                    <h2 class="fw-bold text-primary">주요 기능</h2>
+                    <p class="text-muted">AI 기술로 더 스마트한 쇼핑을 경험하세요</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-brain text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h4 class="fw-bold">AI 추천</h4>
+                        <p class="text-muted">사용자의 취향과 구매 이력을 분석하여 맞춤형 상품을 추천합니다.</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-comments text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h4 class="fw-bold">커뮤니티</h4>
+                        <p class="text-muted">다른 사용자들과 상품 리뷰와 추천을 공유할 수 있습니다.</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-tags text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h4 class="fw-bold">최적 가격</h4>
+                        <p class="text-muted">여러 쇼핑몰의 가격을 비교하여 최적의 구매 기회를 제공합니다.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CTA Section -->
+    <div class="cta-section py-5 bg-primary text-white">
+        <div class="container text-center">
+            <h2 class="fw-bold mb-3">지금 시작해보세요!</h2>
+            <p class="lead mb-4">AI와 함께하는 새로운 쇼핑 경험을 만나보세요</p>
+            <a href="{% url 'accounts:signup' %}" class="btn btn-light btn-lg">
+                <i class="fas fa-rocket me-2"></i>무료로 시작하기
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.hero-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    min-height: 100vh;
+}
+
+.hero-content {
+    padding: 2rem 0;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+}
+
+.feature-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+}
+
+.hero-buttons .btn {
+    border-radius: 50px;
+    padding: 12px 30px;
+    font-weight: 600;
+}
+
+.shopping-illustration {
+    position: relative;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+}
+
+.cta-section {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+</style>
+{% endblock %}
