@@ -27,7 +27,7 @@
                 <i class="fas fa-star me-1"></i>평점남기기
             </button>
             {% endif %}
-            {% if room.status == 'DONE' %}
+            {% if room.status == 'DONE' or room.status == 'FULL' %}
             <button class="btn btn-sm btn-info" id="btn-settlement" data-bs-toggle="modal"
                 data-bs-target="#settlementModal">
                 <i class="fas fa-calculator me-1"></i>정산하기

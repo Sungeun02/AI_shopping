@@ -422,23 +422,6 @@ def join_room(request, room_id: int):
     if room.status == Room.STATUS_FULL:
         return JsonResponse({'ok': False, 'error': 'ROOM_FULL', 'message': '모집이 완료된 방입니다'}, status=400)
 
-    # AI 추천 데이터가 있는 경우 참여 불가
-    # 사용자가 최근에 받은 AI 추천 결과에 이 방이 포함되어 있는지 확인
-    recent_recommendations = AiRecommendLog.objects.filter(
-        user=request.user
-    ).order_by('-created_at')[:10]  # 최근 10개 추천만 확인
-    
-    for rec in recent_recommendations:
-        if rec.top_results:
-            # top_results는 [{"id": room_id, "score": ...}, ...] 형식
-            room_ids_in_recommendation = [r.get('id') for r in rec.top_results if isinstance(r, dict) and 'id' in r]
-            if room.id in room_ids_in_recommendation:
-                return JsonResponse({
-                    'ok': False, 
-                    'error': 'ROOM_FULL', 
-                    'message': '모집이 완료되어 방에 참여할 수 없습니다.'
-                }, status=400)
-
     if not room.is_joinable():
         room.update_status()
         return JsonResponse({'ok': False, 'status': room.status})
@@ -1123,7 +1106,7 @@ def nearby_marts(request):
                 continue
             room_lat, room_lon = pair
             d_km = geodesic(my_pos, (room_lat, room_lon)).km
-            if d_km > 20.0:
+            if d_km > 8.0:
                 continue
             candidates.append({
                 'room': room,
@@ -1138,7 +1121,7 @@ def nearby_marts(request):
                 'ok': True,
                 'origin': {'lat': my_lat, 'lng': my_lon, 'source': 'ai_ranking'},
                 'results': [],
-                'reason': 'No nearby rooms within 20km',
+                'reason': 'No nearby rooms within 8km',
             })
 
         # Stage 2: feature build
@@ -1421,32 +1404,22 @@ def process_settlement(request, room_id: int):
                 }, status=400)
             
             # 정산 결과 저장 (texts + optional receipt)
-            payload_to_save = {
-                'texts': ocr_texts,
-            }
+            # 기존 결과가 있으면 유지하면서 texts와 receipt만 업데이트
+            if isinstance(room.settlement_result, dict):
+                base = room.settlement_result
+            else:
+                base = {'texts': (room.settlement_result or [])}
+            
+            base['texts'] = ocr_texts
             if receipt_struct:
-                payload_to_save['receipt'] = receipt_struct
-            room.settlement_result = payload_to_save
+                base['receipt'] = receipt_struct
+            # allocation은 유지 (finalize_settlement에서 업데이트됨)
+            
+            room.settlement_result = base
             room.settlement_created_at = timezone.now()
             room.save()
             
-            # 시스템 메시지 생성
-            ChatMessage.objects.create(
-                room=room,
-                user=None,
-                content=f'{request.user.name}방장이 정산을 완료했습니다',
-                is_system=True
-            )
-            
-            # 참여자들에게 알림 생성
-            participants = RoomParticipant.objects.filter(room=room).exclude(user=request.user)
-            for participant in participants:
-                Notification.objects.create(
-                    user=participant.user,
-                    room=room,
-                    notification_type=Notification.TYPE_CHAT,
-                    message=f'{request.user.name}방장이 정산을 완료했습니다. 정산을 확인하세요.'
-                )
+            # 알림은 finalize_settlement에서만 생성 (중복 방지)
             
             return JsonResponse({
                 'ok': True,
