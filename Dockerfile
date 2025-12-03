@@ -30,4 +30,6 @@ COPY . .
 EXPOSE 8000
 
 # Run Gunicorn (프로덕션 서버)
-CMD ["gunicorn", "ai_shopping.wsgi:application", "--bind", "0.0.0.0:8000"]
+# Render는 $PORT 환경변수를 제공하므로 이를 사용 (기본값 8000)
+# 에러 발생 시 메시지 출력을 위해 shell 형식 사용
+CMD ["sh", "-c", "exec gunicorn ai_shopping.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
