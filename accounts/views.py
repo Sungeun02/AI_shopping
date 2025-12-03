@@ -646,14 +646,25 @@ def get_new_messages(request, room_id: int):
     messages_data = []
     max_id = last_message_id
     for msg in new_messages:
-        messages_data.append({
-            'id': msg.id,
-            'user': msg.user.name,
-            'user_id': msg.user.id,
-            'content': msg.content,
-            'created_at': msg.created_at.isoformat(),
-            'is_system': msg.is_system,
-        })
+        # 시스템 메시지는 user가 None일 수 있음
+        if msg.is_system or msg.user is None:
+            messages_data.append({
+                'id': msg.id,
+                'user': None,
+                'user_id': None,
+                'content': msg.content,
+                'created_at': msg.created_at.isoformat(),
+                'is_system': True,
+            })
+        else:
+            messages_data.append({
+                'id': msg.id,
+                'user': msg.user.name,
+                'user_id': msg.user.id,
+                'content': msg.content,
+                'created_at': msg.created_at.isoformat(),
+                'is_system': False,
+            })
         if msg.id > max_id:
             max_id = msg.id
     
