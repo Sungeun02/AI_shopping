@@ -38,6 +38,16 @@ DEBUG = _debug_env in ('true', '1', 'yes')  # 환경변수로 제어
 # In development, allow all hosts to avoid DisallowedHost 400s from Docker/localhost
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
 
+# CSRF 보호를 위한 신뢰할 수 있는 오리진 설정
+# Render 배포 시 HTTPS 도메인 추가 필요
+CSRF_TRUSTED_ORIGINS = [
+    "https://ai-shopping.onrender.com",
+]
+# 환경변수로 추가 오리진 설정 가능
+_csrf_origins = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
+if _csrf_origins:
+    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in _csrf_origins.split(",") if origin.strip()])
+
 
 # Application definition
 

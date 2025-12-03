@@ -28,14 +28,13 @@ RUN python -c "import gunicorn; print('gunicorn version:', gunicorn.__version__)
 # Copy the rest of the application code
 COPY . .
 
-# Collect static files는 배포 후 수동 실행
-# (빌드 단계에서는 제외하여 오류 방지)
-# 배포 후 Shell에서: python manage.py collectstatic --noinput
+# 시작 스크립트 복사 및 실행 권한 부여
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 # Expose port
 EXPOSE 8000
 
-# Run Gunicorn (프로덕션 서버)
-# Render는 $PORT 환경변수를 제공하므로 이를 사용 (기본값 8000)
-# python -m gunicorn을 사용하여 PATH 문제 해결
-CMD ["sh", "-c", "exec python -m gunicorn ai_shopping.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
+# 시작 스크립트 실행
+# 마이그레이션과 collectstatic을 자동으로 실행한 후 Gunicorn 시작
+CMD ["/app/start.sh"]
