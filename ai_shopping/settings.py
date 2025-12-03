@@ -61,10 +61,21 @@ INSTALLED_APPS = [
     'accounts',  # 사용자 인증 앱
 ]
 
+# WhiteNoise 미들웨어 설정 (배포 환경에서만 사용)
+try:
+    import whitenoise
+    WHITENOISE_AVAILABLE = True
+except ImportError:
+    WHITENOISE_AVAILABLE = False
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    # WhiteNoise는 배포 환경에서만 사용 (로컬에서는 선택적)
-    # 'whitenoise.middleware.WhiteNoiseMiddleware',  # 정적 파일 서빙
+]
+# WhiteNoise 미들웨어 추가 (설치되어 있는 경우에만)
+if WHITENOISE_AVAILABLE:
+    MIDDLEWARE.append('whitenoise.middleware.WhiteNoiseMiddleware')
+
+MIDDLEWARE.extend([
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
