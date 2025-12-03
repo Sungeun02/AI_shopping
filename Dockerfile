@@ -22,13 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Collect static files (DB 없이 실행되도록 더미 환경변수 설정)
-# collectstatic은 선택적 (실패해도 빌드 계속)
-RUN set -e; \
-    DATABASE_URL=postgres://dummy:dummy@dummy:5432/dummy \
-    SECRET_KEY=dummy-secret-key-for-build \
-    DEBUG=False \
-    python manage.py collectstatic --noinput || echo "collectstatic failed, continuing..."
+# Collect static files는 배포 후 수동 실행
+# (빌드 단계에서는 제외하여 오류 방지)
+# 배포 후 Shell에서: python manage.py collectstatic --noinput
 
 # Expose port
 EXPOSE 8000
