@@ -153,7 +153,9 @@ STATICFILES_DIRS = [
 try:
     import whitenoise
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    # CompressedManifestStaticFilesStorage 대신 CompressedStaticFilesStorage 사용
+    # (manifest 파일 없이도 작동)
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 except ImportError:
     # WhiteNoise가 없으면 기본 설정 사용 (로컬 개발 환경)
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
