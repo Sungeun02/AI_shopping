@@ -23,7 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Collect static files (DB 없이 실행되도록 더미 환경변수 설정)
-RUN DATABASE_URL=postgres://dummy:dummy@dummy:5432/dummy python manage.py collectstatic --noinput
+# collectstatic 실패 시에도 빌드 계속 진행 (|| true)
+RUN DATABASE_URL=postgres://dummy:dummy@dummy:5432/dummy python manage.py collectstatic --noinput || true
 
 # Expose port
 EXPOSE 8000

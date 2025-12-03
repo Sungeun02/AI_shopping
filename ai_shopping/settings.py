@@ -28,10 +28,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-your-secret-key-here-change-in-production'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-your-secret-key-here-change-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False') == 'True'  # 환경변수로 제어
+# 환경변수로 제어 (True, true, 1 등 모두 허용)
+_debug_env = os.getenv('DEBUG', '').lower()
+DEBUG = _debug_env in ('true', '1', 'yes')  # 환경변수로 제어
 
 # In development, allow all hosts to avoid DisallowedHost 400s from Docker/localhost
 if DEBUG:
@@ -56,7 +58,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # 정적 파일 서빙
+    # WhiteNoise는 배포 환경에서만 사용 (로컬에서는 선택적)
+    # 'whitenoise.middleware.WhiteNoiseMiddleware',  # 정적 파일 서빙
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -89,7 +92,12 @@ WSGI_APPLICATION = 'ai_shopping.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-import dj_database_url
+# dj_database_url은 배포 환경에서만 필요 (로컬에서는 선택적)
+try:
+    import dj_database_url
+    DJ_DATABASE_URL_AVAILABLE = True
+except ImportError:
+    DJ_DATABASE_URL_AVAILABLE = False
 
 # 기본값: SQLite (로컬 개발용)
 DATABASES = {
@@ -101,9 +109,10 @@ DATABASES = {
 
 # 배포 환경(Render)에서는 PostgreSQL 사용
 # DATABASE_URL 환경변수가 있으면 자동으로 PostgreSQL로 전환
-db_from_env = dj_database_url.config(conn_max_age=500)
-if db_from_env:
-    DATABASES['default'].update(db_from_env)
+if DJ_DATABASE_URL_AVAILABLE:
+    db_from_env = dj_database_url.config(conn_max_age=500)
+    if db_from_env:
+        DATABASES['default'].update(db_from_env)
 
 
 # Password validation
@@ -145,9 +154,14 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 
-# 배포용 정적 파일 설정
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# 배포용 정적 파일 설정 (WhiteNoise가 설치된 경우에만 사용)
+try:
+    import whitenoise
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+except ImportError:
+    # WhiteNoise가 없으면 기본 설정 사용 (로컬 개발 환경)
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

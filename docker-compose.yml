@@ -36,7 +36,7 @@ services:
       - .:/app
       - ./ml_models:/app/ml_models
     environment:
-      - DEBUG=1
+      - DEBUG=True
       - DB_HOST=grocerysql
       - DB_PORT=3306
       - DB_NAME=grocery
