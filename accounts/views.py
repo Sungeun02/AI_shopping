@@ -2,12 +2,10 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.contrib.auth.forms import UserCreationForm
 from django.urls import reverse_lazy
 from django.views.generic import CreateView
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.db.models import Count, Q, Avg
-from django.db import models
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET
@@ -21,7 +19,6 @@ import json
 import time
 import uuid
 import re
-import math
 from datetime import datetime, timedelta
 
 # Optional AI/geo stack
