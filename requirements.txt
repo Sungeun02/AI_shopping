@@ -11,3 +11,7 @@ python-dateutil
 joblib
 xgboost
 scikit-learn
+gunicorn
+psycopg2-binary
+whitenoise
+dj-database-url

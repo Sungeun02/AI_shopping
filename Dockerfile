@@ -19,6 +19,12 @@ COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
+# gunicorn 명시적 설치 (requirements.txt에 있지만 확실히 설치)
+RUN pip install --no-cache-dir gunicorn
+
+# gunicorn 설치 확인
+RUN python -c "import gunicorn; print('gunicorn version:', gunicorn.__version__)"
+
 # Copy the rest of the application code
 COPY . .
 
