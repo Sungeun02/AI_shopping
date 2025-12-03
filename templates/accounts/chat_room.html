@@ -73,27 +73,29 @@
 
     <div class="card-body" id="chat-messages" style="height:50vh; overflow-y:auto;">
         {% for msg in chat_messages %}
-        {% if msg.is_system %}
-        <div class="mb-2 d-flex justify-content-center">
-            <div class="system-message">
-                <div class="text-muted small">{{ msg.content }}</div>
-            </div>
-        </div>
-        {% else %}
-        <div class="mb-2 d-flex {% if msg.user == user %}justify-content-end{% else %}justify-content-start{% endif %}">
-            <div class="message-bubble {% if msg.user == user %}message-sent{% else %}message-received{% endif %}">
-                {% if msg.user != user %}
-                <div class="small text-muted mb-1">
-                    <strong>{{ msg.user.name }}</strong>
-                </div>
-                {% endif %}
-                <div>{{ msg.content|linebreaksbr }}</div>
-                <div class="small text-muted mt-1">
-                    {{ msg.created_at|date:"A g:i" }}
+        <div data-message-id="{{ msg.id }}">
+            {% if msg.is_system %}
+            <div class="mb-2 d-flex justify-content-center">
+                <div class="system-message">
+                    <div class="text-muted small">{{ msg.content }}</div>
                 </div>
             </div>
+            {% else %}
+            <div class="mb-2 d-flex {% if msg.user == user %}justify-content-end{% else %}justify-content-start{% endif %}">
+                <div class="message-bubble {% if msg.user == user %}message-sent{% else %}message-received{% endif %}">
+                    {% if msg.user != user %}
+                    <div class="small text-muted mb-1">
+                        <strong>{{ msg.user.name }}</strong>
+                    </div>
+                    {% endif %}
+                    <div>{{ msg.content|linebreaksbr }}</div>
+                    <div class="small text-muted mt-1">
+                        {{ msg.created_at|date:"A g:i" }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
         {% empty %}
         <div class="text-muted text-center">메시지가 없습니다.</div>
         {% endfor %}
@@ -299,8 +301,83 @@
         });
     }
 
+    // 실시간 채팅을 위한 Polling
+    let lastMessageId = 0;
+    let pollingInterval = null;
+    let isPolling = false;
+
+    // 페이지 로드 시 마지막 메시지 ID 설정
+    window.addEventListener('load', () => {
+        const existingMessages = chatMessages.querySelectorAll('[data-message-id]');
+        if (existingMessages.length > 0) {
+            const lastMsg = existingMessages[existingMessages.length - 1];
+            lastMessageId = parseInt(lastMsg.getAttribute('data-message-id')) || 0;
+        }
+        startPolling();
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+
+    // 페이지를 떠날 때 Polling 중지
+    window.addEventListener('beforeunload', () => {
+        stopPolling();
+    });
+
+    function startPolling() {
+        if (isPolling) return;
+        isPolling = true;
+        
+        // 2초마다 새 메시지 확인
+        pollingInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`{% url 'accounts:get_new_messages' room.id %}?last_id=${lastMessageId}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRFToken': getCsrf(),
+                    },
+                });
+                const data = await res.json();
+                
+                if (data.ok && data.messages && data.messages.length > 0) {
+                    // 새 메시지 추가
+                    data.messages.forEach(message => {
+                        // 중복 체크 (이미 표시된 메시지는 건너뛰기)
+                        if (!document.querySelector(`[data-message-id="${message.id}"]`)) {
+                            addMessageToChat(message);
+                        }
+                    });
+                    
+                    // 마지막 메시지 ID 업데이트
+                    lastMessageId = data.last_id;
+                    
+                    // 스크롤을 맨 아래로 (사용자가 맨 아래에 있을 때만)
+                    const isScrolledToBottom = chatMessages.scrollHeight - chatMessages.clientHeight <= chatMessages.scrollTop + 100;
+                    if (isScrolledToBottom) {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching new messages:', error);
+            }
+        }, 2000); // 2초마다
+    }
+
+    function stopPolling() {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+        isPolling = false;
+    }
+
+    // addMessageToChat 함수 수정 (메시지 ID 추가 및 중복 체크)
     function addMessageToChat(message) {
+        // 중복 체크
+        if (document.querySelector(`[data-message-id="${message.id}"]`)) {
+            return;
+        }
+        
         const messageDiv = document.createElement('div');
+        messageDiv.setAttribute('data-message-id', message.id);
 
         // 시스템 메시지 처리
         if (message.is_system) {
@@ -331,12 +408,12 @@
         }
 
         chatMessages.appendChild(messageDiv);
+        
+        // 마지막 메시지 ID 업데이트
+        if (message.id > lastMessageId) {
+            lastMessageId = message.id;
+        }
     }
-
-    // 페이지 로드 시 스크롤을 맨 아래로
-    window.addEventListener('load', () => {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    });
 
     // 나가기 버튼
     const btnLeave = document.getElementById('btn-leave-room');

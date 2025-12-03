@@ -572,20 +572,8 @@
                 const res = await fetch(`{% url 'accounts:join_room' 0 %}`.replace('/0/', '/' + roomId + '/'), { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
                 const data = await res.json();
                 if (data.ok) {
-                    const participants = card.querySelector('.room-participants');
-                    if (participants) {
-                        participants.textContent = `인원 ${data.current}/${data.max}`;
-                    }
-                    // 참여 버튼을 참여완료로 변경
-                    joinBtn.textContent = '참여완료';
-                    joinBtn.disabled = true;
-                    joinBtn.classList.remove('btn-primary');
-                    joinBtn.classList.add('btn-success');
-                    if (data.status !== 'RECRUITING') {
-                        const chip = card.querySelector('.status-chip');
-                        chip.className = `status-chip status-${data.status}`;
-                        chip.textContent = data.settlement_result ? '정산완료' : (data.status === 'FULL' ? '인원 마감' : (data.status_text || '완료'));
-                    }
+                    // 페이지 새로고침하여 모든 변경사항 반영
+                    location.reload();
                 } else {
                     alert('참여할 수 없습니다: ' + (data.message || data.status));
                 }
@@ -825,17 +813,8 @@
                 const modalEl = document.getElementById('createRoomModal');
                 const modal = bootstrap.Modal.getInstance(modalEl);
                 modal?.hide();
-                appendRoomCard(data.room);
-                document.getElementById('create-room-form').reset();
-                const helpOld = document.getElementById('cr-help'); if (helpOld) { helpOld.textContent = ''; }
-                const suggest = document.getElementById('cr-suggest'); if (suggest) { suggest.style.display = 'none'; suggest.innerHTML = ''; }
-                // 카테고리 영역 스타일 초기화
-                const categoriesDiv = document.getElementById('cr-categories');
-                if (categoriesDiv) {
-                    categoriesDiv.style.border = '';
-                    categoriesDiv.style.borderRadius = '';
-                    categoriesDiv.style.padding = '';
-                }
+                // 페이지 새로고침하여 모든 변경사항 반영
+                location.reload();
             } else {
                 const formEl = document.getElementById('create-room-form');
                 let help = document.getElementById('cr-help');
@@ -967,20 +946,10 @@
             const res = await fetch(`{% url 'accounts:join_room' 0 %}`.replace('/0/', '/' + room.id + '/'), { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
             const data = await res.json();
             if (data.ok) {
-                const participants = div.querySelector('.room-participants');
-                if (participants) {
-                    participants.textContent = `인원 ${data.current}/${data.max}`;
-                }
-                // 참여 버튼을 참여완료로 변경
-                btn.textContent = '참여완료';
-                btn.disabled = true;
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-success');
-                if (data.status !== 'RECRUITING') {
-                    const chip = div.querySelector('.status-chip');
-                    chip.className = `status-chip status-${data.status}`;
-                    chip.textContent = data.settlement_result ? '정산완료' : (data.status === 'FULL' ? '인원 마감' : (data.status_text || '완료'));
-                }
+                // 페이지 새로고침
+                location.reload();
+            } else {
+                alert('참여할 수 없습니다: ' + (data.message || data.status));
             }
         });
     }
@@ -1326,16 +1295,8 @@
                 const res = await fetch(`{% url 'accounts:join_room' 0 %}`.replace('/0/', '/' + r.id + '/'), { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
                 const data = await res.json();
                 if (data.ok) {
-                    const participants = div.querySelector('.room-participants');
-                    if (participants) {
-                        participants.textContent = `인원 ${data.current}/${data.max}`;
-                    }
-                    // 참여 버튼을 참여완료로 변경
-                    btn.textContent = '참여완료';
-                    btn.disabled = true;
-                    btn.classList.remove('btn-primary');
-                    btn.classList.add('btn-success');
-                    if (data.status !== 'RECRUITING') btn.disabled = true;
+                    // 페이지 새로고침
+                    location.reload();
                 } else {
                     alert('참여할 수 없습니다: ' + (data.message || data.status));
                 }

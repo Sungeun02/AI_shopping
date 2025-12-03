@@ -618,6 +618,53 @@ def chat_room(request, room_id: int):
 
 
 @login_required
+def get_new_messages(request, room_id: int):
+    """새로운 채팅 메시지 가져오기 (Polling용)"""
+    try:
+        room = Room.objects.get(id=room_id)
+    except Room.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Room not found'}, status=404)
+    
+    # 사용자가 방에 참여했는지 확인
+    is_participant = RoomParticipant.objects.filter(room=room, user=request.user).exists()
+    if not is_participant and room.created_by != request.user:
+        return JsonResponse({'ok': False, 'error': 'No permission'}, status=403)
+    
+    # 마지막 메시지 ID (쿼리 파라미터에서 가져오기)
+    last_message_id = request.GET.get('last_id', 0)
+    try:
+        last_message_id = int(last_message_id)
+    except (ValueError, TypeError):
+        last_message_id = 0
+    
+    # 마지막 메시지 ID 이후의 새 메시지들 가져오기
+    new_messages = ChatMessage.objects.filter(
+        room=room,
+        id__gt=last_message_id
+    ).select_related('user').order_by('created_at')
+    
+    messages_data = []
+    max_id = last_message_id
+    for msg in new_messages:
+        messages_data.append({
+            'id': msg.id,
+            'user': msg.user.name,
+            'user_id': msg.user.id,
+            'content': msg.content,
+            'created_at': msg.created_at.isoformat(),
+            'is_system': msg.is_system,
+        })
+        if msg.id > max_id:
+            max_id = msg.id
+    
+    return JsonResponse({
+        'ok': True,
+        'messages': messages_data,
+        'last_id': max_id,
+    })
+
+
+@login_required
 def leave_room(request, room_id: int):
     """채팅방 나가기"""
     if request.method != 'POST':

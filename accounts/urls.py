@@ -24,6 +24,7 @@ urlpatterns = [
     # chat
     path('chat/', views.chat_list, name='chat_list'),
     path('chat/<int:room_id>/', views.chat_room, name='chat_room'),
+    path('api/chat/<int:room_id>/messages/', views.get_new_messages, name='get_new_messages'),
     # notifications
     path('api/notifications/', views.get_notifications, name='get_notifications'),
     path('api/notifications/<int:notification_id>/read/', views.mark_notification_read, name='mark_notification_read'),
