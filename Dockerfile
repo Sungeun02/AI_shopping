@@ -38,4 +38,4 @@ EXPOSE 8000
 # Run Gunicorn (프로덕션 서버)
 # Render는 $PORT 환경변수를 제공하므로 이를 사용 (기본값 8000)
 # python -m gunicorn을 사용하여 PATH 문제 해결
-CMD ["sh", "-c", "python -m gunicorn ai_shopping.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
+CMD ["sh", "-c", "exec python -m gunicorn ai_shopping.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
