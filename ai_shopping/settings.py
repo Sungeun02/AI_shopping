@@ -36,12 +36,7 @@ _debug_env = os.getenv('DEBUG', '').lower()
 DEBUG = _debug_env in ('true', '1', 'yes')  # 환경변수로 제어
 
 # In development, allow all hosts to avoid DisallowedHost 400s from Docker/localhost
-if DEBUG:
-    ALLOWED_HOSTS = ['*']
-else:
-    # Configure via env or default to empty for production hardening
-    _hosts = os.getenv('ALLOWED_HOSTS', '')
-    ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()] if _hosts else []
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
 
 
 # Application definition
