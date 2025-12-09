@@ -39,7 +39,9 @@ DEBUG = _debug_env in ('true', '1', 'yes')  # 환경변수로 제어
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
 
 # CSRF 보호를 위한 신뢰할 수 있는 오리진 설정
-# Render 배포 시 HTTPS 도메인 추가 필요
+# Django 4.0 이상부터는 배포된 사이트의 도메인을 명시적으로 신뢰 목록에 넣어줘야 합니다.
+# Render에서 할당받은 도메인 주소를 정확히 적어야 합니다.
+# 예: https://myapp.onrender.com (뒤에 슬래시 '/'는 뺍니다)
 CSRF_TRUSTED_ORIGINS = [
     "https://ai-shopping.onrender.com",
 ]
@@ -47,6 +49,14 @@ CSRF_TRUSTED_ORIGINS = [
 _csrf_origins = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
 if _csrf_origins:
     CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in _csrf_origins.split(",") if origin.strip()])
+
+# 프록시 헤더 및 쿠키 보안 설정
+# Render는 로드 밸런서를 통해 HTTPS를 처리하므로 다음 설정이 필요합니다.
+# 배포 환경에서만 True가 되도록 설정하는 것이 좋습니다.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 
 # Application definition
